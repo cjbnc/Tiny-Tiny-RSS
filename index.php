@@ -252,7 +252,7 @@
 
 		<?php if (!get_pref($link, 'COMBINED_DISPLAY_MODE')) { ?>
 		<div id="content-insert" dojoType="dijit.layout.ContentPane" region="bottom"
-			style="height : 50%" splitter="true"></div>
+			style="height : 70%" splitter="true"></div>
 		<?php } ?>
 
 	</div>
