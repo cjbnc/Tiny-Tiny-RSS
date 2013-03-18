@@ -51,10 +51,11 @@ class My_Custom_Keys extends Plugin {
 //
 // KEYS can be:
 //      "n"             = a single key character
-//      "N"             = a Shifted key character 
+//      "*n"            = Shift + key character  (Shift-n)
+//      "^n"            = Ctrl + key character   (Ctrl-n)
 //      "f q"           = a sequence of two keys
 //      "(37)|left"     = a javascript key code and label
-//      "^(38)|Ctrl-up" = press Ctrl and the coded key, with label
+//      "^(38)|Ctrl-Up" = can use * Shift or ^ Ctrl with key codes
 //  (search the web for "javascript key codes" for more examples)
 // 
 // KEY_FUNCTION can be any of the functions defined by 
