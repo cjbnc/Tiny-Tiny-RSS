@@ -78,8 +78,9 @@ class My_Custom_Keys extends Plugin {
         $hotkeys["(40)|down"]  = "article_scroll_down";
 
         // cjbnc - specific adds
-        $hotkeys["(33)|pageup"]    = "prev_feed";
-        $hotkeys["(34)|pagedown"]  = "next_feed";
+        $hotkeys["(33)|PageUp"]    = "prev_feed";
+        $hotkeys["(34)|PageDown"]  = "next_feed";
+        $hotkeys["M"]              = "feed_catchup";
 
 		return $hotkeys;
 
