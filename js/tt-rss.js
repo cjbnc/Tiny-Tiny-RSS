@@ -659,10 +659,14 @@ function hotkey_handler(e) {
 			catchupRelativeToArticle(0);
 			return false;
 		case "article_scroll_down":
-			scrollArticle(50);
+			var ctr = $("content_insert") ? $("content_insert") : $("headlines-frame");
+
+			scrollArticle(ctr.offsetHeight/3);
 			return false;
 		case "article_scroll_up":
-			scrollArticle(-50);
+			var ctr = $("content_insert") ? $("content_insert") : $("headlines-frame");
+
+			scrollArticle(-ctr.offsetHeight/3);
 			return false;
 		case "close_article":
 			closeArticlePanel();
@@ -670,6 +674,8 @@ function hotkey_handler(e) {
 		case "email_article":
 			if (typeof emailArticle != "undefined") {
 				emailArticle();
+			} else if (typeof mailtoArticle != "undefined") {
+				mailtoArticle();
 			} else {
 				alert(__("Please enable mail plugin first."));
 			}
@@ -894,8 +900,6 @@ function handle_rpc_json(transport, scheduled_call) {
 
 			if (runtime_info)
 				parse_runtime_info(runtime_info);
-
-			hideOrShowFeeds(getInitParam("hide_read_feeds") == 1);
 
 			Element.hide(dijit.byId("net-alert").domNode);
 

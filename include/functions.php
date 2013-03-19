@@ -1946,6 +1946,8 @@
 				"c n" => "catchup_above",
 				"*n" => "article_scroll_down",
 				"*p" => "article_scroll_up",
+				"*(38)|Shift+up" => "article_scroll_up",
+				"*(40)|Shift+down" => "article_scroll_down",
 				"a *w" => "toggle_widescreen",
 				"e" => "email_article",
 				"a q" => "close_article",
@@ -2613,6 +2615,14 @@
 		$entries = $xpath->query('//iframe');
 		foreach ($entries as $entry) {
 			$entry->setAttribute('sandbox', true);
+		}
+
+		global $pluginhost;
+
+		if (isset($pluginhost)) {
+			foreach ($pluginhost->get_hooks($pluginhost::HOOK_SANITIZE) as $plugin) {
+				$doc = $plugin->hook_sanitize($doc, $site_url);
+			}
 		}
 
 		$doc->removeChild($doc->firstChild); //remove doctype
