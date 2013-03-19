@@ -82,6 +82,7 @@ class My_Custom_Keys extends Plugin {
         $hotkeys["(33)|PageUp"]    = "prev_feed";
         $hotkeys["(34)|PageDown"]  = "next_feed";
         $hotkeys["*m"]             = "feed_catchup";
+        $hotkeys["*h"]             = "feed_unhide_read";
 
 		return $hotkeys;
 
