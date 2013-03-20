@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 105);
+	define('SCHEMA_VERSION', 106);
 
 	$fetch_last_error = false;
 	$pluginhost = false;
@@ -286,12 +286,16 @@
 		global $fetch_last_error;
 
 		if (function_exists('curl_init') && !ini_get("open_basedir")) {
-			//$ch = curl_init($url);
-			$ch = curl_init(geturl($url));
+
+			if (ini_get("safe_mode")) {
+				$ch = curl_init(geturl($url));
+			} else {
+				$ch = curl_init($url);
+			}
 
 			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout ? $timeout : 15);
 			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout ? $timeout : 45);
-			//curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("safe_mode"));
 			curl_setopt($ch, CURLOPT_MAXREDIRS, 20);
 			curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
 			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -1885,7 +1889,7 @@
 				"article_scroll_up" => __("Scroll up"),
 				"select_article_cursor" => __("Select article under cursor"),
 				"email_article" => __("Email article"),
-				"close_article" => __("Close article"),
+				"close_article" => __("Close/collapse article"),
 				"toggle_widescreen" => __("Toggle widescreen mode")),
 			__("Article selection") => array(
 				"select_all" => __("Select all articles"),
@@ -2461,6 +2465,7 @@
 						num_comments,
 						comments,
 						int_id,
+						hide_images,
 						unread,feed_id,marked,published,link,last_read,orig_feed_id,
 						last_marked, last_published,
 						".SUBSTRING_FOR_DATE."(last_read,1,19) as last_read_noms,
@@ -2505,6 +2510,7 @@
 								"label_cache," .
 								"link," .
 								"last_read," .
+								"hide_images," .
 								"last_marked, last_published, " .
 								SUBSTRING_FOR_DATE . "(last_read,1,19) as last_read_noms," .
 								$since_id_part .
@@ -2560,14 +2566,10 @@
 
 	}
 
-	function sanitize($link, $str, $force_strip_tags = false, $owner = false, $site_url = false) {
+	function sanitize($link, $str, $force_remove_images = false, $owner = false, $site_url = false) {
 		if (!$owner) $owner = $_SESSION["uid"];
 
 		$res = trim($str); if (!$res) return '';
-
-		if (get_pref($link, "STRIP_IMAGES", $owner)) {
-			$res = preg_replace('/<img[^>]+>/is', '', $res);
-		}
 
 		if (strpos($res, "href=") === false)
 			$res = rewrite_urls($res);
@@ -2605,6 +2607,24 @@
 
 					$entry->setAttribute('src', $src);
 				}
+
+				if ($entry->nodeName == 'img') {
+					if (($owner && get_pref($link, "STRIP_IMAGES", $owner)) ||
+							$force_remove_images) {
+
+						$p = $doc->createElement('p');
+
+						$a = $doc->createElement('a');
+						$a->setAttribute('href', $entry->getAttribute('src'));
+
+						$a->appendChild(new DOMText($entry->getAttribute('src')));
+						$a->setAttribute('target', '_blank');
+
+						$p->appendChild($a);
+
+						$entry->parentNode->replaceChild($p, $entry);
+					}
+				}
 			}
 
 			if (strtolower($entry->nodeName) == "a") {
@@ -2634,7 +2654,7 @@
 	function strip_harmful_tags($doc) {
 		$entries = $doc->getElementsByTagName("*");
 
-		$allowed_elements = array('a', 'address', 'audio',
+		$allowed_elements = array('a', 'address', 'audio', 'article',
 			'b', 'big', 'blockquote', 'body', 'br', 'cite',
 			'code', 'dd', 'del', 'details', 'div', 'dl',
 			'dt', 'em', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -2855,6 +2875,8 @@
 
 		$entry = "";
 
+		$url = htmlspecialchars($url);
+
 		if (strpos($ctype, "audio/") === 0) {
 
 			if ($_SESSION["hasAudio"] && (strpos($ctype, "ogg") !== false ||
@@ -2881,7 +2903,8 @@
 					</object>";
 			}
 
-			if ($entry) $entry .= "&nbsp;" . basename($url);
+			if ($entry) $entry .= "&nbsp; <a target=\"_blank\"
+				href=\"$url\">" . basename($url) . "</a>";
 
 			return $entry;
 
@@ -3611,7 +3634,7 @@
 				array_push($entries, $entry);
 			}
 
-			if (!get_pref($link, "STRIP_IMAGES")) {
+			if ($_SESSION['uid'] && !get_pref($link, "STRIP_IMAGES")) {
 				if ($always_display_enclosures ||
 							!preg_match("/<img/i", $article_content)) {
 
@@ -4012,8 +4035,8 @@
 			$oline='';
 			foreach($status as $key=>$eline){$oline.='['.$key.']'.$eline.' ';}
 			$line =$oline." \r\n ".$url."\r\n-----------------\r\n";
-			$handle = @fopen('./curl.error.log', 'a');
-			fwrite($handle, $line);
+#			$handle = @fopen('./curl.error.log', 'a');
+#			fwrite($handle, $line);
 			return FALSE;
 		}
 		return $url;

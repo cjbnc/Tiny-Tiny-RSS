@@ -263,6 +263,8 @@ class Feeds extends Handler_Protected {
 
 			if ($_REQUEST["debug"]) $timing_info = print_checkpoint("PS", $timing_info);
 
+			$expand_cdm = get_pref($this->link, 'CDM_EXPANDED');
+
 			while ($line = db_fetch_assoc($result)) {
 				$class = ($lnum % 2) ? "even" : "odd";
 
@@ -405,11 +407,11 @@ class Feeds extends Handler_Protected {
 
 							$cur_feed_title = htmlspecialchars($cur_feed_title);
 
-							$vf_catchup_link = "(<a onclick='catchupFeedInGroup($feed_id);' href='#'>".__('mark as read')."</a>)";
+							$vf_catchup_link = "(<a class='catchup' onclick='catchupFeedInGroup($feed_id);' href='#'>".__('Mark as read')."</a>)";
 
 							$reply['content'] .= "<div class='cdmFeedTitle'>".
 								"<div style=\"float : right\">$feed_icon_img</div>".
-								"<a href=\"#\" onclick=\"viewfeed($feed_id)\">".
+								"<a class='title' href=\"#\" onclick=\"viewfeed($feed_id)\">".
 								$line["feed_title"]."</a> $vf_catchup_link</div>";
 
 						}
@@ -481,7 +483,7 @@ class Feeds extends Handler_Protected {
 					unset($line["tag_cache"]);
 
 					$line["content"] = sanitize($this->link, $line["content_preview"],
-							false, false, $entry_site_url);
+							sql_bool_to_bool($line['hide_images']), false, $entry_site_url);
 
 					foreach ($pluginhost->get_hooks($pluginhost::HOOK_RENDER_ARTICLE_CDM) as $p) {
 						$line = $p->hook_render_article_cdm($line);
@@ -495,7 +497,7 @@ class Feeds extends Handler_Protected {
 
 							$cur_feed_title = htmlspecialchars($cur_feed_title);
 
-							$vf_catchup_link = "(<a onclick='javascript:catchupFeedInGroup($feed_id);' href='#'>".__('mark as read')."</a>)";
+							$vf_catchup_link = "(<a class='catchup' onclick='javascript:catchupFeedInGroup($feed_id);' href='#'>".__('mark as read')."</a>)";
 
 							$has_feed_icon = feed_has_icon($feed_id);
 
@@ -507,17 +509,17 @@ class Feeds extends Handler_Protected {
 
 							$reply['content'] .= "<div class='cdmFeedTitle'>".
 								"<div style=\"float : right\">$feed_icon_img</div>".
-								"<a href=\"#\" onclick=\"viewfeed($feed_id)\">".
+								"<a href=\"#\" class='title' onclick=\"viewfeed($feed_id)\">".
 								$line["feed_title"]."</a> $vf_catchup_link</div>";
 						}
 					}
 
-					$expand_cdm = get_pref($this->link, 'CDM_EXPANDED');
-
 					$mouseover_attrs = "onmouseover='postMouseIn($id)'
 						onmouseout='postMouseOut($id)'";
 
-					$reply['content'] .= "<div class=\"cdm $class\"
+					$expanded_class = $expand_cdm ? "expanded" : "";
+
+					$reply['content'] .= "<div class=\"cdm $expanded_class $class\"
 						id=\"RROW-$id\" $mouseover_attrs'>";
 
 					$reply['content'] .= "<div class=\"cdmHeader\">";
@@ -548,6 +550,10 @@ class Feeds extends Handler_Protected {
 
 					$reply['content'] .= $labels_str;
 
+					$reply['content'] .= "<span class='collapseBtn' style='display : none'>
+						<img src=\"images/collapse.png\" onclick=\"cdmCollapseArticle(event, $id)\"
+						title=\"".__("Collapse article")."\"/></span>";
+
 					if (!$expand_cdm)
 						$content_hidden = "style=\"display : none\"";
 					else
@@ -555,7 +561,6 @@ class Feeds extends Handler_Protected {
 
 					$reply['content'] .= "<span $excerpt_hidden
 						id=\"CEXC-$id\" class=\"cdmExcerpt\"> - $content_preview</span>";
-
 					$reply['content'] .= "</span>";
 
 					if (!get_pref($this->link, 'VFEED_GROUP_BY_FEED')) {
@@ -622,16 +627,17 @@ class Feeds extends Handler_Protected {
 					}
 
 					$reply['content'] .= "<span id=\"CWRAP-$id\">";
-					$reply['content'] .= $line["content"];
+
+					if (!$expand_cdm) {
+						$reply['content'] .= "<span id=\"CENCW-$id\">";
+						$reply['content'] .= htmlspecialchars($line["content"]);
+						$reply['content'] .= "</span.";
+
+					} else {
+						$reply['content'] .= $line["content"];
+					}
+
 					$reply['content'] .= "</span>";
-
-/*					$tmp_result = db_query($this->link, "SELECT always_display_enclosures FROM
-						ttrss_feeds WHERE id = ".
-						(($line['feed_id'] == null) ? $line['orig_feed_id'] :
-							$line['feed_id'])." AND owner_uid = ".$_SESSION["uid"]);
-
-					$always_display_enclosures = sql_bool_to_bool(db_fetch_result($tmp_result,
-						0, "always_display_enclosures")); */
 
 					$always_display_enclosures = sql_bool_to_bool($line["always_display_enclosures"]);
 
@@ -939,7 +945,6 @@ class Feeds extends Handler_Protected {
 
 		return $reply;
 	}
-
 
 }
 ?>

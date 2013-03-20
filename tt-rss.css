@@ -720,10 +720,6 @@ div.autocomplete ul li {
 	cursor : pointer;
 }
 
-#header a.feedback {
-	color : #009900;
-}
-
 a.visibleLink {
 	color : #4684ff;
 }
@@ -1184,4 +1180,16 @@ ul.helpKbList span.hksequence {
 
 ul.helpKbList h2 {
 	margin-top : 0px;
+}
+
+.dijitTreeNode .loadingNode {
+	margin-left : 3px;
+}
+
+span.collapseBtn {
+	cursor : pointer;
+}
+
+div.postContent p {
+	max-width : 650px;
 }
