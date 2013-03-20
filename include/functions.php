@@ -2634,7 +2634,8 @@
 
 		$entries = $xpath->query('//iframe');
 		foreach ($entries as $entry) {
-			$entry->setAttribute('sandbox', true);
+			$entry->setAttribute('sandbox', 'allow-scripts');
+
 		}
 
 		global $pluginhost;
@@ -2656,7 +2657,7 @@
 
 		$allowed_elements = array('a', 'address', 'audio', 'article',
 			'b', 'big', 'blockquote', 'body', 'br', 'cite',
-			'code', 'dd', 'del', 'details', 'div', 'dl',
+			'code', 'dd', 'del', 'details', 'div', 'dl', 'font',
 			'dt', 'em', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
 			'header', 'html', 'i', 'img', 'ins', 'kbd',
 			'li', 'nav', 'ol', 'p', 'pre', 'q', 's','small',
@@ -4068,6 +4069,27 @@
 		}
 
 		return $rv;
+	}
+
+	function stylesheet_tag($filename) {
+		$timestamp = filemtime($filename);
+
+		echo "<link rel=\"stylesheet\" type=\"text/css\" href=\"$filename?$timestamp\"/>\n";
+	}
+
+	function javascript_tag($filename) {
+		$query = "";
+
+		if (!(strpos($filename, "?") === FALSE)) {
+			$query = substr($filename, strpos($filename, "?")+1);
+			$filename = substr($filename, 0, strpos($filename, "?"));
+		}
+
+		$timestamp = filemtime($filename);
+
+		if ($query) $timestamp .= "&$query";
+
+		echo "<script type=\"text/javascript\" charset=\"utf-8\" src=\"$filename?$timestamp\"></script>\n";
 	}
 
 ?>
