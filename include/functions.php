@@ -44,6 +44,7 @@
 		$tr = array(
 					"auto"  => "Detect automatically",
 					"ca_CA" => "Català",
+					"cs_CZ" => "Česky",
 					"en_US" => "English",
 					"es_ES" => "Español",
 					"de_DE" => "Deutsch",
@@ -122,14 +123,24 @@
 	 * @return void
 	 */
 	function _debug($msg) {
-		if (defined('QUIET') && QUIET) {
-			return;
-		}
 		$ts = strftime("%H:%M:%S", time());
 		if (function_exists('posix_getpid')) {
 			$ts = "$ts/" . posix_getpid();
 		}
-		print "[$ts] $msg\n";
+
+		if (!(defined('QUIET') && QUIET)) {
+			print "[$ts] $msg\n";
+		}
+
+		if (defined('LOGFILE'))  {
+			$fp = fopen(LOGFILE, 'a+');
+
+			if ($fp) {
+				fputs($fp, "[$ts] $msg\n");
+				fclose($fp);
+			}
+		}
+
 	} // function _debug
 
 	/**
@@ -784,11 +795,6 @@
 		} else {
 			return $str;
 		}
-	}
-
-	// Deprecated, TODO: remove
-	function theme_image($link, $filename) {
-		return $filename;
 	}
 
 	function convert_timestamp($timestamp, $source_tz, $dest_tz) {
@@ -1825,10 +1831,10 @@
 	function make_init_params($link) {
 		$params = array();
 
-		$params["sign_progress"] = theme_image($link, "images/indicator_white.gif");
-		$params["sign_progress_tiny"] = theme_image($link, "images/indicator_tiny.gif");
-		$params["sign_excl"] = theme_image($link, "images/sign_excl.svg");
-		$params["sign_info"] = theme_image($link, "images/sign_info.svg");
+		$params["sign_progress"] = "images/indicator_white.gif";
+		$params["sign_progress_tiny"] = "images/indicator_tiny.gif";
+		$params["sign_excl"] = "images/sign_excl.svg";
+		$params["sign_info"] = "images/sign_info.svg";
 
 		foreach (array("ON_CATCHUP_SHOW_NEXT_FEED", "HIDE_READ_FEEDS",
 			"ENABLE_FEED_CATS", "FEEDS_SORT_BY_UNREAD", "CONFIRM_FEED_CATCHUP",
@@ -2065,7 +2071,7 @@
 		return $data;
 	}
 
-	function search_to_sql($link, $search, $match_on) {
+	function search_to_sql($link, $search) {
 
 		$search_query_part = "";
 
@@ -2112,13 +2118,9 @@
 				//$k = date("Y-m-d", strtotime(substr($k, 1)));
 
 				array_push($query_keywords, "(".SUBSTRING_FOR_DATE."(updated,1,LENGTH('$k')) $not = '$k')");
-			} else if ($match_on == "both") {
+			} else {
 				array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
 						OR UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
-			} else if ($match_on == "title") {
-				array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%'))");
-			} else if ($match_on == "content") {
-				array_push($query_keywords, "(UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
 			}
 		}
 
@@ -2155,7 +2157,7 @@
 		return $rv;
 	}
 
-	function queryFeedHeadlines($link, $feed, $limit, $view_mode, $cat_view, $search, $search_mode, $match_on, $override_order = false, $offset = 0, $owner_uid = 0, $filter = false, $since_id = 0, $include_children = false, $ignore_vfeed_group = false) {
+	function queryFeedHeadlines($link, $feed, $limit, $view_mode, $cat_view, $search, $search_mode, $override_order = false, $offset = 0, $owner_uid = 0, $filter = false, $since_id = 0, $include_children = false, $ignore_vfeed_group = false) {
 
 		if (!$owner_uid) $owner_uid = $_SESSION["uid"];
 
@@ -2172,7 +2174,7 @@
 						$search_query_part = "ref_id = -1 AND ";
 
 				} else {
-					$search_query_part = search_to_sql($link, $search, $match_on);
+					$search_query_part = search_to_sql($link, $search);
 					$search_query_part .= " AND ";
 				}
 
@@ -2510,7 +2512,7 @@
 								"label_cache," .
 								"link," .
 								"last_read," .
-								"hide_images," .
+								"(SELECT hide_images FROM ttrss_feeds WHERE id = feed_id) AS hide_images," .
 								"last_marked, last_published, " .
 								SUBSTRING_FOR_DATE . "(last_read,1,19) as last_read_noms," .
 								$since_id_part .
@@ -2839,19 +2841,19 @@
 	function format_warning($msg, $id = "") {
 		global $link;
 		return "<div class=\"warning\" id=\"$id\">
-			<img src=\"".theme_image($link, "images/sign_excl.svg")."\">$msg</div>";
+			<img src=\"images/sign_excl.svg\">$msg</div>";
 	}
 
 	function format_notice($msg, $id = "") {
 		global $link;
 		return "<div class=\"notice\" id=\"$id\">
-			<img src=\"".theme_image($link, "images/sign_info.svg")."\">$msg</div>";
+			<img src=\"images/sign_info.svg\">$msg</div>";
 	}
 
 	function format_error($msg, $id = "") {
 		global $link;
 		return "<div class=\"error\" id=\"$id\">
-			<img src=\"".theme_image($link, "images/sign_excl.svg")."\">$msg</div>";
+			<img src=\"images/sign_excl.svg\">$msg</div>";
 	}
 
 	function print_notice($msg) {
@@ -2950,6 +2952,7 @@
 		$result = db_query($link, "SELECT id,title,link,content,feed_id,comments,int_id,
 			".SUBSTRING_FOR_DATE."(updated,1,16) as updated,
 			(SELECT site_url FROM ttrss_feeds WHERE id = feed_id) as site_url,
+			(SELECT hide_images FROM ttrss_feeds WHERE id = feed_id) as hide_images,
 			num_comments,
 			tag_cache,
 			author,
@@ -3040,7 +3043,7 @@
 			if (!$entry_comments) $entry_comments = "&nbsp;"; # placeholder
 
 			$rv['content'] .= "<div class='postTags' style='float : right'>
-				<img src='".theme_image($link, 'images/tag.png')."'
+				<img src='images/tag.png'
 				class='tagsPic' alt='Tags' title='Tags'>&nbsp;";
 
 			if (!$zoom_mode) {
@@ -3131,7 +3134,7 @@
 			$rv['content'] .= $line["content"];
 
 			$rv['content'] .= format_article_enclosures($link, $id,
-				$always_display_enclosures, $line["content"]);
+				$always_display_enclosures, $line["content"], $line["hide_images"]);
 
 			$rv['content'] .= "</div>";
 
@@ -3594,7 +3597,7 @@
 	}
 
 	function format_article_enclosures($link, $id, $always_display_enclosures,
-					$article_content) {
+					$article_content, $hide_images = false) {
 
 		$result = get_article_enclosures($link, $id);
 		$rv = '';
@@ -3644,10 +3647,16 @@
 						if (preg_match("/image/", $entry["type"]) ||
 								preg_match("/\.(jpg|png|gif|bmp)/i", $entry["filename"])) {
 
-								$rv .= "<p><img
-								alt=\"".htmlspecialchars($entry["filename"])."\"
-								src=\"" .htmlspecialchars($entry["url"]) . "\"/></p>";
+								if (!$hide_images) {
+									$rv .= "<p><img
+									alt=\"".htmlspecialchars($entry["filename"])."\"
+									src=\"" .htmlspecialchars($entry["url"]) . "\"/></p>";
+								} else {
+									$rv .= "<p><a target=\"_blank\"
+									href=\"".htmlspecialchars($entry["url"])."\"
+									>" .htmlspecialchars($entry["url"]) . "</a></p>";
 
+								}
 						}
 					}
 				}
