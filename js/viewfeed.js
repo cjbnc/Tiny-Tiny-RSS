@@ -979,9 +979,9 @@ function deleteSelection() {
 		var str;
 
 		if (getActiveFeedId() != 0) {
-			str = __("Delete %d selected articles in %s?");
+			str = ngettext("Delete %d selected article in %s?", "Delete %d selected articles in %s?" , rows.length);
 		} else {
-			str = __("Delete %d selected articles?");
+			str = ngettext("Delete %d selected article?", "Delete %d selected articles?", rows.length);
 		}
 
 		str = str.replace("%d", rows.length);
@@ -1023,10 +1023,10 @@ function archiveSelection() {
 		var op;
 
 		if (getActiveFeedId() != 0) {
-			str = __("Archive %d selected articles in %s?");
+			str = ngettext("Archive %d selected article in %s?", "Archive %d selected articles in %s?", rows.length);
 			op = "archive";
 		} else {
-			str = __("Move %d archived articles back?");
+			str = ngettext("Move %d archived article back?", "Move %d archived articles back?", rows.length);
 			op = "unarchive";
 		}
 
@@ -1070,7 +1070,7 @@ function catchupSelection() {
 
 		var fn = getFeedName(getActiveFeedId(), activeFeedIsCat());
 
-		var str = __("Mark %d selected articles in %s as read?");
+		var str = ngettext("Mark %d selected article in %s as read?", "Mark %d selected articles in %s as read?", rows.length);
 
 		str = str.replace("%d", rows.length);
 		str = str.replace("%s", fn);
@@ -1317,7 +1317,7 @@ function catchupRelativeToArticle(below, id) {
 		if (ids_to_mark.length == 0) {
 			alert(__("No articles found to mark"));
 		} else {
-			var msg = __("Mark %d article(s) as read?").replace("%d", ids_to_mark.length);
+			var msg = ngettext("Mark %d article as read?", "Mark %d articles as read?", ids_to_mark.length).replace("%d", ids_to_mark.length);
 
 			if (getInitParam("confirm_feed_catchup") != 1 || confirm(msg)) {
 
@@ -1392,6 +1392,7 @@ function cdmExpandArticle(id) {
 		  	Element.hide(elem);
 			Element.show("CEXC-" + getActiveArticleId());
 			Element.hide(collapse);
+			$("RROW-" + getActiveArticleId()).removeClassName("active");
 		}
 
 		setActiveArticleId(id);
@@ -1413,6 +1414,7 @@ function cdmExpandArticle(id) {
 			Element.show(elem);
 			Element.hide("CEXC-" + id);
 			Element.show(collapse);
+			$("RROW-" + id).addClassName("active");
 		}
 
 		var new_offset = $("RROW-" + id).offsetTop;
@@ -1824,6 +1826,12 @@ function initHeadlinesMenu() {
 				openArticleInNewWindow(this.getParent().callerRowId);
 			}}));
 
+		menu.addChild(new dijit.MenuItem({
+			label: __("Display article URL"),
+			onClick: function(event) {
+				displayArticleUrl(this.getParent().callerRowId);
+			}}));
+
 		menu.addChild(new dijit.MenuSeparator());
 
 		menu.addChild(new dijit.MenuItem({
@@ -2031,6 +2039,24 @@ function changeScore(id, pic) {
 					}
 				} });
 		}
+	} catch (e) {
+		exception_error("changeScore", e);
+	}
+}
+
+function displayArticleUrl(id) {
+	try {
+		var query = "op=rpc&method=getlinktitlebyid&id=" + param_escape(id);
+
+			new Ajax.Request("backend.php", {
+				parameters: query,
+				onComplete: function(transport) {
+					var reply = JSON.parse(transport.responseText);
+
+					if (reply && reply.link) {
+						prompt(__("Article URL:"), reply.link);
+					}
+				} });
 	} catch (e) {
 		exception_error("changeScore", e);
 	}

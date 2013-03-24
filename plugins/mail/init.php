@@ -30,7 +30,7 @@ class Mail extends Plugin {
 
 	function emailArticle() {
 
-		$param = db_escape_string($_REQUEST['param']);
+		$param = db_escape_string($this->link, $_REQUEST['param']);
 
 		$secretkey = sha1(uniqid(rand(), true));
 
@@ -137,7 +137,7 @@ class Mail extends Plugin {
 	function sendEmail() {
 		$secretkey = $_REQUEST['secretkey'];
 
-		require_once 'lib/phpmailer/class.phpmailer.php';
+		require_once 'classes/ttrssmailer.php';
 
 		$reply = array();
 
@@ -146,42 +146,25 @@ class Mail extends Plugin {
 
 			$_SESSION['email_secretkey'] = '';
 
-			$destination = $_REQUEST['destination'];
-			$subject = $_REQUEST['subject'];
-			$content = $_REQUEST['content'];
-
 			$replyto = strip_tags($_SESSION['email_replyto']);
 			$fromname = strip_tags($_SESSION['email_fromname']);
 
-			$mail = new PHPMailer();
-
-			$mail->PluginDir = "lib/phpmailer/";
-			$mail->SetLanguage("en", "lib/phpmailer/language/");
-
-			$mail->CharSet = "UTF-8";
+			$mail = new ttrssMailer();
 
 			$mail->From = $replyto;
 			$mail->FromName = $fromname;
-			$mail->AddAddress($destination);
-
-			if (SMTP_HOST) {
-				$mail->Host = SMTP_HOST;
-				$mail->Mailer = "smtp";
-				$mail->SMTPAuth = SMTP_LOGIN != '';
-				$mail->Username = SMTP_LOGIN;
-				$mail->Password = SMTP_PASSWORD;
-			}
+			$mail->AddAddress($_REQUEST['destination']);
 
 			$mail->IsHTML(false);
-			$mail->Subject = $subject;
-			$mail->Body = $content;
+			$mail->Subject = $_REQUEST['subject'];
+			$mail->Body = $_REQUEST['content'];
 
 			$rc = $mail->Send();
 
 			if (!$rc) {
 				$reply['error'] =  $mail->ErrorInfo;
 			} else {
-				save_email_address($this->link, db_escape_string($destination));
+				save_email_address($this->link, db_escape_string($this->link, $destination));
 				$reply['message'] = "UPDATE_COUNTERS";
 			}
 
@@ -193,7 +176,7 @@ class Mail extends Plugin {
 	}
 
 	function completeEmails() {
-		$search = db_escape_string($_REQUEST["search"]);
+		$search = db_escape_string($this->link, $_REQUEST["search"]);
 
 		print "<ul>";
 

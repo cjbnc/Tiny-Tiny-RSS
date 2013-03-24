@@ -22,6 +22,7 @@ class PluginHost {
 	const HOOK_RENDER_ARTICLE_CDM = 11;
 	const HOOK_FEED_FETCHED = 12;
 	const HOOK_SANITIZE = 13;
+	const HOOK_RENDER_ARTICLE_API = 14;
 
 	const KIND_ALL = 1;
 	const KIND_SYSTEM = 2;
@@ -210,7 +211,7 @@ class PluginHost {
 
 	function load_data($force = false) {
 		if ($this->owner_uid && (!$_SESSION["plugin_storage"] || $force))  {
-			$plugin = db_escape_string($plugin);
+			$plugin = db_escape_string($this->link, $plugin);
 
 			$result = db_query($this->link, "SELECT name, content FROM ttrss_plugin_storage
 				WHERE owner_uid = '".$this->owner_uid."'");
@@ -225,7 +226,7 @@ class PluginHost {
 
 	private function save_data($plugin) {
 		if ($this->owner_uid) {
-			$plugin = db_escape_string($plugin);
+			$plugin = db_escape_string($this->link, $plugin);
 
 			db_query($this->link, "BEGIN");
 
@@ -235,7 +236,7 @@ class PluginHost {
 			if (!isset($this->storage[$plugin]))
 				$this->storage[$plugin] = array();
 
-			$content = db_escape_string(serialize($this->storage[$plugin]));
+			$content = db_escape_string($this->link, serialize($this->storage[$plugin]));
 
 			if (db_num_rows($result) != 0) {
 				db_query($this->link, "UPDATE ttrss_plugin_storage SET content = '$content'

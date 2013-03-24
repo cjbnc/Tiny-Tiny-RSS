@@ -201,13 +201,13 @@ function notify_real(msg, no_hide, n_type) {
 		n.className = "notify";
 	} else if (n_type == 2) {
 		n.className = "notifyProgress";
-		msg = "<img src='"+getInitParam("sign_progress")+"'> " + msg;
+		msg = "<img src='images/indicator_white.gif'> " + msg;
 	} else if (n_type == 3) {
 		n.className = "notifyError";
-		msg = "<img src='"+getInitParam("sign_excl")+"'> " + msg;
+		msg = "<img src='images/sign_excl.svg'> " + msg;
 	} else if (n_type == 4) {
 		n.className = "notifyInfo";
-		msg = "<img src='"+getInitParam("sign_info")+"'> " + msg;
+		msg = "<img src='images/sign_info.svg'> " + msg;
 	}
 
 //	msg = "<img src='images/live_com_loading.gif'> " + msg;
@@ -1216,20 +1216,31 @@ function quickAddFilter() {
 			var lh = dojo.connect(dialog, "onLoad", function(){
 				dojo.disconnect(lh);
 
-				var title = $("PTITLE-FULL-" + getActiveArticleId());
+				var query = "op=rpc&method=getlinktitlebyid&id=" + getActiveArticleId();
 
-				if (title || getActiveFeedId() || activeFeedIsCat()) {
-					if (title) title = title.innerHTML;
+				new Ajax.Request("backend.php", {
+				parameters: query,
+				onComplete: function(transport) {
+					var reply = JSON.parse(transport.responseText);
 
-					console.log(title + " " + getActiveFeedId());
+					var title = false;
 
-					var feed_id = activeFeedIsCat() ? 'CAT:' + parseInt(getActiveFeedId()) :
-						getActiveFeedId();
+					if (reply && reply) title = reply.title;
 
-					var rule = { reg_exp: title, feed_id: feed_id, filter_type: 1 };
+					if (title || getActiveFeedId() || activeFeedIsCat()) {
 
-					addFilterRule(null, dojo.toJson(rule));
-				}
+						console.log(title + " " + getActiveFeedId());
+
+						var feed_id = activeFeedIsCat() ? 'CAT:' + parseInt(getActiveFeedId()) :
+							getActiveFeedId();
+
+						var rule = { reg_exp: title, feed_id: feed_id, filter_type: 1 };
+
+						addFilterRule(null, dojo.toJson(rule));
+					}
+
+				} });
+
 			});
 		}
 

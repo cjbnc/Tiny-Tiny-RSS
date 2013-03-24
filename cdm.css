@@ -132,6 +132,10 @@ div.cdm.expanded.Unread.Selected div.cdmHeader, div.cdm.expanded.Selected div.cd
 	background : #FFEA9E;
 }
 
+div.cdm.active.Selected div.cdmHeader {
+	background : #FFEA9E;
+}
+
 div.cdm.expanded.even.Unread, div.cdm.expanded.odd.Unread {
 	background : white;
 }
@@ -155,3 +159,18 @@ div.cdmContentInner p {
 .Unread div.cdmHeader {
 	font-weight : bold;
 }
+
+div.cdmContentInner iframe {
+	min-width : 50%;
+}
+
+div.cdmHeader span.author {
+	color : gray;
+	font-size : 11px;
+	font-weight : normal;
+}
+
+div.cdm.expanded div.cdmHeader a.title, div.cdm.active div.cdmHeader a.title {
+	font-size : 13px;
+}
+
