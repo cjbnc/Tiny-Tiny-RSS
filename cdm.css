@@ -121,7 +121,7 @@ div.cdmHeader span.hlFeed {
 }
 
 div.cdm.expanded .cdmHeader {
-	background : #EEF6FD;
+	background : #E0E0E0;
 }
 
 div.cdm.expanded.Unread div.cdmHeader {
@@ -174,3 +174,23 @@ div.cdm.expanded div.cdmHeader a.title, div.cdm.active div.cdmHeader a.title {
 	font-size : 13px;
 }
 
+div#small_article_preview {
+	width : 300px;
+	max-height : 350px;
+	overflow : hidden;
+	border : 1px solid #c0c0c0;
+	background : white;
+	position : absolute;
+	box-shadow : 2px 2px 4px #c0c0c0;
+	z-index : 2;
+}
+
+div#small_article_preview div.content {
+	padding : 5px;
+	font-size : 12px;
+	color : gray;
+}
+
+div#small_article_preview div.content img {
+	max-width : 290px;
+}

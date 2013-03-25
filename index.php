@@ -77,7 +77,6 @@
 				"lib/dojo/dojo.js",
 				"lib/dijit/dijit.js",
 				"lib/dojo/tt-rss-layer.js",
-				"localized_js.php",
 				"errors.php?mode=js") as $jsfile) {
 
 		echo javascript_tag($jsfile);
@@ -99,6 +98,7 @@
 		print get_minified_js(array("tt-rss",
 			"functions", "feedlist", "viewfeed", "FeedTree"));
 
+		init_js_translations();
 	?>
 	</script>
 
@@ -122,6 +122,8 @@
 		<noscript><br/><?php print_error('Javascript is disabled. Please enable it.') ?></noscript>
 	</div>
 </div>
+
+<div style="display : none" onclick="Element.hide(this)" id="small_article_preview"></div>
 
 <div id="header">
 	<img id="net-alert" style="display : none"
@@ -171,7 +173,6 @@
 			<option value="published"><?php echo __('Published') ?></option>
 			<option value="unread"><?php echo __('Unread') ?></option>
 			<!-- <option value="noscores"><?php echo __('Ignore Scoring') ?></option> -->
-			<option value="updated"><?php echo __('Updated') ?></option>
 		</select>
 
 		<select title="<?php echo __('Sort articles') ?>"

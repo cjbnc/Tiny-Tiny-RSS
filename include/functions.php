@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 106);
+	define('SCHEMA_VERSION', 107);
 
 	$fetch_last_error = false;
 	$pluginhost = false;
@@ -2039,6 +2039,7 @@
 		$data['cdm_expanded'] = get_pref($link, 'CDM_EXPANDED');
 
 		$data['dep_ts'] = calculate_dep_timestamp();
+		$data['reload_on_ts_change'] = !defined('_NO_RELOAD_ON_TS_CHANGE');
 
 		if (file_exists(LOCK_DIRECTORY . "/update_daemon.lock")) {
 
@@ -2235,13 +2236,40 @@
 				if ($search) {
 					$view_query_part = " ";
 				} else if ($feed != -1) {
-					$unread = getFeedUnread($link, $feed, $cat_view);
 
-					if ($cat_view && $feed > 0 && $include_children)
-						$unread += getCategoryChildrenUnread($link, $feed);
+					if (defined('_CLASSIC_ADAPTIVE')) {
 
-					if ($unread > 0) {
-						$view_query_part = " unread = true AND ";
+						$unread = getFeedUnread($link, $feed, $cat_view);
+
+						if ($cat_view && $feed > 0 && $include_children)
+							$unread += getCategoryChildrenUnread($link, $feed);
+
+						if ($unread > 0)
+				        $view_query_part = " unread = true AND ";
+
+					} else {
+
+						if (get_pref($link, "SORT_HEADLINES_BY_FEED_DATE", $owner_uid)) {
+							$a_date_sort_field = "updated";
+						} else {
+							$a_date_sort_field = "date_entered";
+						}
+
+						if (get_pref($link, 'REVERSE_HEADLINES', $owner_uid)) {
+							$a_order_by = "$a_date_sort_field";
+						} else {
+							$a_order_by = "$a_date_sort_field DESC";
+						}
+
+						if (!$override_order) {
+							$override_order = "unread DESC, $a_order_by";
+						}
+
+						if (!$ignore_vfeed_group && ($is_cat || $feed_id < 0) &&
+								get_pref($link, 'VFEED_GROUP_BY_FEED', $owner_uid)) {
+
+							$override_order = "ttrss_feeds.title, $override_order";
+						}
 					}
 				}
 			}
@@ -2685,15 +2713,21 @@
 			}
 
 			if ($entry->hasAttributes()) {
-				foreach (iterator_to_array($entry->attributes) as $attr) {
+				$attrs_to_remove = array();
+
+				foreach ($entry->attributes as $attr) {
 
 					if (strpos($attr->nodeName, 'on') === 0) {
-						$entry->removeAttributeNode($attr);
+						array_push($attrs_to_remove, $attr);
 					}
 
 					if (in_array($attr->nodeName, $disallowed_attributes)) {
-						$entry->removeAttributeNode($attr);
+						array_push($attrs_to_remove, $attr);
 					}
+				}
+
+				foreach ($attrs_to_remove as $attr) {
+					$entry->removeAttributeNode($attr);
 				}
 			}
 		}
@@ -3192,7 +3226,7 @@
 			$filter_id = $line["id"];
 
 			$result2 = db_query($link, "SELECT
-				r.reg_exp, r.feed_id, r.cat_id, r.cat_filter, t.name AS type_name
+				r.reg_exp, r.inverse, r.feed_id, r.cat_id, r.cat_filter, t.name AS type_name
 				FROM ttrss_filters2_rules AS r,
 				ttrss_filter_types AS t
 				WHERE
@@ -3209,6 +3243,7 @@
 				$rule = array();
 				$rule["reg_exp"] = $rule_line["reg_exp"];
 				$rule["type"] = $rule_line["type_name"];
+				$rule["inverse"] = sql_bool_to_bool($rule_line["inverse"]);
 
 				array_push($rules, $rule);
 			}
@@ -3232,6 +3267,7 @@
 
 			$filter = array();
 			$filter["match_any_rule"] = sql_bool_to_bool($line["match_any_rule"]);
+			$filter["inverse"] = sql_bool_to_bool($line["inverse"]);
 			$filter["rules"] = $rules;
 			$filter["actions"] = $actions;
 
@@ -3853,7 +3889,7 @@
 
 				$rule['reg_exp'] = db_escape_string($link, $rule['reg_exp']);
 
-				switch ($rule["type"]) {
+					switch ($rule["type"]) {
 					case "title":
 						$qpart = "LOWER(ttrss_entries.title) $reg_qpart LOWER('".
 							$rule['reg_exp'] . "')";
@@ -3881,6 +3917,8 @@
 						break;
 				}
 
+				if (isset($rule['inverse'])) $qpart = "NOT ($qpart)";
+
 				if (isset($rule["feed_id"]) && $rule["feed_id"] > 0) {
 					$qpart .= " AND feed_id = " . db_escape_string($link, $rule["feed_id"]);
 				}
@@ -3907,10 +3945,14 @@
 		}
 
 		if (count($query) > 0) {
-			return "(" . join($filter["match_any_rule"] ? "OR" : "AND", $query) . ")";
+			$fullquery = "(" . join($filter["match_any_rule"] ? "OR" : "AND", $query) . ")";
 		} else {
-			return "(false)";
+			$fullquery = "(false)";
 		}
+
+		if ($filter['inverse']) $fullquery = "(NOT $fullquery)";
+
+		return $fullquery;
 	}
 
 	if (!function_exists('gzdecode')) {
@@ -4082,6 +4124,44 @@
 		}
 
 		return $max_ts;
+	}
+
+	function T_js_decl($s1, $s2) {
+		if ($s1 && $s2) {
+			$s1 = preg_replace("/\n/", "", $s1);
+			$s2 = preg_replace("/\n/", "", $s2);
+
+			$s1 = preg_replace("/\"/", "\\\"", $s1);
+			$s2 = preg_replace("/\"/", "\\\"", $s2);
+
+			return "T_messages[\"$s1\"] = \"$s2\";\n";
+		}
+	}
+
+	function init_js_translations() {
+
+	print 'var T_messages = new Object();
+
+		function __(msg) {
+			if (T_messages[msg]) {
+				return T_messages[msg];
+			} else {
+				return msg;
+			}
+		}
+
+		function ngettext(msg1, msg2, n) {
+			return (parseInt(n) > 1) ? msg2 : msg1;
+		}';
+
+		$l10n = _get_reader();
+
+		for ($i = 0; $i < $l10n->total; $i++) {
+			$orig = $l10n->get_original_string($i);
+			$translation = __($orig);
+
+			print T_js_decl($orig, $translation);
+		}
 	}
 
 ?>
