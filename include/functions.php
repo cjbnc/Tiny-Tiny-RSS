@@ -1,6 +1,9 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 108);
+	define('SCHEMA_VERSION', 109);
+
+	define('LABEL_BASE_INDEX', -1024);
+	define('PLUGIN_FEED_BASE_INDEX', -128);
 
 	$fetch_last_error = false;
 	$pluginhost = false;
@@ -285,8 +288,6 @@
 	}
 
 	function fetch_file_contents($url, $type = false, $login = false, $pass = false, $post_query = false, $timeout = false) {
-		$login = urlencode($login);
-		$pass = urlencode($pass);
 
 		global $fetch_last_error;
 
@@ -348,10 +349,12 @@
 
 			return $contents;
 		} else {
-			if ($login && $pass ){
+			if ($login && $pass){
 				$url_parts = array();
 
 				preg_match("/(^[^:]*):\/\/(.*)/", $url, $url_parts);
+
+				$pass = urlencode($pass);
 
 				if ($url_parts[1] && $url_parts[2]) {
 					$url = $url_parts[1] . "://$login:$pass@" . $url_parts[2];
@@ -1034,7 +1037,7 @@
 							AND $ref_check_qpart AND unread = true
 							AND owner_uid = $owner_uid");
 
-				} else if ($feed < 0 && $feed > -10) { // special, like starred
+				} else if ($feed < 0 && $feed > LABEL_BASE_INDEX) { // special, like starred
 
 					if ($feed == -1) {
 						db_query($link, "UPDATE ttrss_user_entries
@@ -1085,9 +1088,9 @@
 							owner_uid = $owner_uid");
 					}
 
-				} else if ($feed < -10) { // label
+				} else if ($feed < LABEL_BASE_INDEX) { // label
 
-					$label_id = -$feed - 11;
+					$label_id = feed_to_label_id($feed);
 
 					db_query($link, "UPDATE ttrss_user_entries, ttrss_user_labels2
 						SET unread = false, last_read = NOW()
@@ -1334,9 +1337,9 @@
 				$match_part = "feed_id IS NULL";
 			}
 
-		} else if ($feed < -10) {
+		} else if ($feed < LABEL_BASE_INDEX) {
 
-			$label_id = -$feed - 11;
+			$label_id = feed_to_label_id($feed);
 
 			return getLabelUnread($link, $label_id, $owner_uid);
 
@@ -1428,6 +1431,20 @@
 			array_push($ret_arr, $cv);
 		}
 
+		global $pluginhost;
+
+		if ($pluginhost) {
+			$feeds = $pluginhost->get_feeds(-1);
+
+			foreach ($feeds as $feed) {
+				$cv = array("id" => PluginHost::pfeed_to_feed_id($feed['id']),
+					"counter" => $feed['sender']->get_unread($feed['id']));
+
+				array_push($ret_arr, $cv);
+			}
+
+		}
+
 		return $ret_arr;
 	}
 
@@ -1446,7 +1463,7 @@
 
 		while ($line = db_fetch_assoc($result)) {
 
-			$id = -$line["id"] - 11;
+			$id = label_to_feed_id($line["id"]);
 
 			$label_name = $line["caption"];
 			$count = $line["unread"];
@@ -1753,7 +1770,7 @@
 	function getFeedCatTitle($link, $id) {
 		if ($id == -1) {
 			return __("Special");
-		} else if ($id < -10) {
+		} else if ($id < LABEL_BASE_INDEX) {
 			return __("Labels");
 		} else if ($id > 0) {
 			$result = db_query($link, "SELECT ttrss_feed_categories.title
@@ -1791,7 +1808,7 @@
 			return "images/recently_read.png";
 			break;
 		default:
-			if ($id < -10) {
+			if ($id < LABEL_BASE_INDEX) {
 				return "images/label.png";
 			} else {
 				if (file_exists(ICONS_DIR . "/$id.ico"))
@@ -1816,8 +1833,8 @@
 			return __("Archived articles");
 		} else if ($id == -6) {
 			return __("Recently read");
-		} else if ($id < -10) {
-			$label_id = -$id - 11;
+		} else if ($id < LABEL_BASE_INDEX) {
+			$label_id = feed_to_label_id($id);
 			$result = db_query($link, "SELECT caption FROM ttrss_labels2 WHERE id = '$label_id'");
 			if (db_num_rows($result) == 1) {
 				return db_fetch_result($result, 0, "caption");
@@ -1854,6 +1871,7 @@
 		$params["default_view_limit"] = (int) get_pref($link, "_DEFAULT_VIEW_LIMIT");
 		$params["default_view_order_by"] = get_pref($link, "_DEFAULT_VIEW_ORDER_BY");
 		$params["bw_limit"] = (int) $_SESSION["bw_limit"];
+		$params["label_base_index"] = (int) LABEL_BASE_INDEX;
 
 		$result = db_query($link, "SELECT MAX(id) AS mid, COUNT(*) AS nf FROM
 			ttrss_feeds WHERE owner_uid = " . $_SESSION["uid"]);
@@ -2338,9 +2356,9 @@
 
 				if (!$override_order) {
 					if (get_pref($link, 'REVERSE_HEADLINES', $owner_uid)) {
-						$override_order = "date_entered";
+						$override_order = "date_entered, updated";
 					} else {
-						$override_order = "last_marked DESC, date_entered DESC";
+						$override_order = "last_marked DESC, date_entered DESC, updated DESC";
 					}
 				}
 
@@ -2353,9 +2371,9 @@
 
 					if (!$override_order) {
 						if (get_pref($link, 'REVERSE_HEADLINES', $owner_uid)) {
-							$override_order = "date_entered";
+							$override_order = "date_entered, updated";
 						} else {
-							$override_order = "last_published DESC, date_entered DESC";
+							$override_order = "last_published DESC, date_entered DESC, updated DESC";
 						}
 					}
 
@@ -2380,17 +2398,17 @@
 				$intl = get_pref($link, "FRESH_ARTICLE_MAX_AGE", $owner_uid);
 
 				if (DB_TYPE == "pgsql") {
-					$query_strategy_part .= " AND updated > NOW() - INTERVAL '$intl hour' ";
+					$query_strategy_part .= " AND date_entered > NOW() - INTERVAL '$intl hour' ";
 				} else {
-					$query_strategy_part .= " AND updated > DATE_SUB(NOW(), INTERVAL $intl HOUR) ";
+					$query_strategy_part .= " AND date_entered > DATE_SUB(NOW(), INTERVAL $intl HOUR) ";
 				}
 
 				$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
 			} else if ($feed == -4) { // all articles virtual feed
 				$query_strategy_part = "true";
 				$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
-			} else if ($feed <= -10) { // labels
-				$label_id = -$feed - 11;
+			} else if ($feed <= LABEL_BASE_INDEX) { // labels
+				$label_id = feed_to_label_id($feed);
 
 				$query_strategy_part = "label_id = '$label_id' AND
 					ttrss_labels2.id = ttrss_user_labels2.label_id AND
@@ -2411,9 +2429,9 @@
 			}
 
 			if (get_pref($link, 'REVERSE_HEADLINES', $owner_uid)) {
-				$order_by = "$date_sort_field";
+				$order_by = "$date_sort_field, updated";
 			} else {
-				$order_by = "$date_sort_field DESC";
+				$order_by = "$date_sort_field DESC, updated DESC";
 			}
 
 			if ($view_mode != "noscores") {
@@ -2497,10 +2515,8 @@
 						hide_images,
 						unread,feed_id,marked,published,link,last_read,orig_feed_id,
 						last_marked, last_published,
-						".SUBSTRING_FOR_DATE."(last_read,1,19) as last_read_noms,
 						$vfeed_query_part
 						$content_query_part
-						".SUBSTRING_FOR_DATE."(updated,1,19) as updated_noms,
 						author,score
 					FROM
 						$from_qpart
@@ -2541,11 +2557,9 @@
 								"last_read," .
 								"(SELECT hide_images FROM ttrss_feeds WHERE id = feed_id) AS hide_images," .
 								"last_marked, last_published, " .
-								SUBSTRING_FOR_DATE . "(last_read,1,19) as last_read_noms," .
 								$since_id_part .
 								$vfeed_query_part .
 								$content_query_part .
-								SUBSTRING_FOR_DATE . "(updated,1,19) as updated_noms," .
 								"score ";
 
 				$feed_kind = "Tags";
@@ -2667,23 +2681,6 @@
 
 		}
 
-		global $pluginhost;
-
-		if (isset($pluginhost)) {
-			foreach ($pluginhost->get_hooks($pluginhost::HOOK_SANITIZE) as $plugin) {
-				$doc = $plugin->hook_sanitize($doc, $site_url);
-			}
-		}
-
-		$doc->removeChild($doc->firstChild); //remove doctype
-		$doc = strip_harmful_tags($doc);
-		$res = $doc->saveHTML();
-		return $res;
-	}
-
-	function strip_harmful_tags($doc) {
-		$entries = $doc->getElementsByTagName("*");
-
 		$allowed_elements = array('a', 'address', 'audio', 'article',
 			'b', 'big', 'blockquote', 'body', 'br', 'cite', 'center',
 			'code', 'dd', 'del', 'details', 'div', 'dl', 'font',
@@ -2694,9 +2691,33 @@
 			'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead',
 			'tr', 'track', 'tt', 'u', 'ul', 'var', 'wbr', 'video' );
 
-		if ($_SESSION['hasSandbox']) array_push($allowed_elements, 'iframe');
+		if ($_SESSION['hasSandbox']) $allowed_elements[] = 'iframe';
 
 		$disallowed_attributes = array('id', 'style', 'class');
+
+		global $pluginhost;
+
+		if (isset($pluginhost)) {
+			foreach ($pluginhost->get_hooks($pluginhost::HOOK_SANITIZE) as $plugin) {
+				$retval = $plugin->hook_sanitize($doc, $site_url, $allowed_elements, $disallowed_attributes);
+				if (is_array($retval)) {
+					$doc = $retval[0];
+					$allowed_elements = $retval[1];
+					$disallowed_attributes = $retval[2];
+				} else {
+					$doc = $retval;
+				}
+			}
+		}
+
+		$doc->removeChild($doc->firstChild); //remove doctype
+		$doc = strip_harmful_tags($doc, $allowed_elements, $disallowed_attributes);
+		$res = $doc->saveHTML();
+		return $res;
+	}
+
+	function strip_harmful_tags($doc, $allowed_elements, $disallowed_attributes) {
+		$entries = $doc->getElementsByTagName("*");
 
 		foreach ($entries as $entry) {
 			if (!in_array($entry->nodeName, $allowed_elements)) {
@@ -4153,6 +4174,14 @@
 
 			print T_js_decl($orig, $translation);
 		}
+	}
+
+	function label_to_feed_id($label) {
+		return LABEL_BASE_INDEX - 1 - abs($label);
+	}
+
+	function feed_to_label_id($feed) {
+		return LABEL_BASE_INDEX - 1 + abs($feed);
 	}
 
 ?>

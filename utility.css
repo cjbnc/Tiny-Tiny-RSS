@@ -1,8 +1,9 @@
 body {
-	margin : 2em;
-	padding : 0em;
+	margin : 20px;
+	padding : 0px;
 	font-family : sans-serif;
 	font-size : 12px;
+	background : white;
 }
 
 p.warning {
@@ -68,19 +69,18 @@ div.error {
 }
 
 h1 {
-	color : #88b0f0;
-	font-size : 16pt;
-/*	border-width : 0px 0px 1px 0px;
-	border-color : black;
-	border-style : solid; */
+	color : black;
+	font-size : 32px;
+	font-family : serif;
+	/* text-shadow : 2px 2px 2px #f0f0f0; */
 }
 
 h2 {
 	color : #88b0f0;
 	font-size : 14pt;
-/*	border-width : 0px 0px 1px 0px;
-	border-color : black;
-	border-style : solid; */
+	border-width : 0px 0px 1px 0px;
+	border-color : #f0f0f0;
+	border-style : solid; 
 }
 
 div.rss h1 {

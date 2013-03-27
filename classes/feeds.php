@@ -217,9 +217,38 @@ class Feeds extends Handler_Protected {
 		    $search_mode = $method;
 		}
 //		error_log("search_mode: " . $search_mode);
-		$qfh_ret = queryFeedHeadlines($this->link, $feed, $limit, $view_mode, $cat_view,
-			$search, $search_mode, $override_order, $offset, 0,
-			false, 0, $include_children);
+
+		if (!$cat_view && is_numeric($feed) && $feed < PLUGIN_FEED_BASE_INDEX) {
+			global $pluginhost;
+
+			$handler = $pluginhost->get_feed_handler(
+				PluginHost::feed_to_pfeed_id($feed));
+
+		//	function queryFeedHeadlines($link, $feed, $limit, $view_mode, $cat_view, $search, $search_mode, $override_order = false, $offset = 0, $owner_uid = 0, $filter = false, $since_id = 0, $include_children = false, $ignore_vfeed_group = false) {
+
+			if ($handler) {
+				$options = array(
+					"limit" => $limit,
+					"view_mode" => $view_mode,
+					"cat_view" => $cat_view,
+					"search" => $search,
+					"search_mode" => $search_mode,
+					"override_order" => $override_order,
+					"offset" => $offset,
+					"owner_uid" => $_SESSION["uid"],
+					"filter" => false,
+					"since_id" => 0,
+					"include_children" => $include_children);
+
+				$qfh_ret = $handler->get_headlines(PluginHost::feed_to_pfeed_id($feed),
+					$options);
+			}
+
+		} else {
+			$qfh_ret = queryFeedHeadlines($this->link, $feed, $limit, $view_mode, $cat_view,
+				$search, $search_mode, $override_order, $offset, 0,
+				false, 0, $include_children);
+		}
 
 		if ($_REQUEST["debug"]) $timing_info = print_checkpoint("H1", $timing_info);
 
@@ -351,7 +380,9 @@ class Feeds extends Handler_Protected {
 #				$content_link = "<a href=\"javascript:viewContentUrl('".$line["link"]."');\">" .
 #					$line["title"] . "</a>";
 
-				$updated_fmt = make_local_datetime($this->link, $line["updated_noms"], false);
+				$updated_fmt = make_local_datetime($this->link, $line["updated"], false);
+				$date_entered_fmt = T_sprintf("Imported at %s",
+					make_local_datetime($this->link, $line["date_entered"], false));
 
 				if (get_pref($this->link, 'SHOW_CONTENT_PREVIEW')) {
 					$content_preview = truncate_string(strip_tags($line["content_preview"]),
@@ -454,12 +485,14 @@ class Feeds extends Handler_Protected {
 						if (@$line["feed_title"]) {
 							$reply['content'] .= "<div class=\"hlFeed\">
 								<a href=\"#\" onclick=\"viewfeed($feed_id)\">".
-								$line["feed_title"]."</a>
+								truncate_string($line["feed_title"],30)."</a>
 							</div>";
 						}
 					}
 
-					$reply['content'] .= "$updated_fmt</span>";
+					$reply['content'] .= "<span title='$date_entered_fmt'>$updated_fmt</span>
+						</span>";
+
 					$reply['content'] .= "<div class=\"hlRight\">";
 
 					$reply['content'] .= $score_pic;
@@ -561,12 +594,13 @@ class Feeds extends Handler_Protected {
 						if (@$line["feed_title"]) {
 							$reply['content'] .= "<div class=\"hlFeed\">
 								<a href=\"#\" onclick=\"viewfeed($feed_id)\">".
-								$line["feed_title"]."</a>
+								truncate_string($line["feed_title"],30)."</a>
 							</div>";
 						}
 					}
 
-					$reply['content'] .= "<span class='updated'>$updated_fmt</span>";
+					$reply['content'] .= "<span class='updated' title='$date_entered_fmt'>
+						$updated_fmt</span>";
 
 					$reply['content'] .= "<div style=\"vertical-align : middle\">";
 					$reply['content'] .= "$score_pic";
@@ -700,7 +734,7 @@ class Feeds extends Handler_Protected {
 					$message = __("No starred articles found to display.");
 					break;
 				default:
-					if ($feed < -10) {
+					if ($feed < LABEL_BASE_INDEX) {
 						$message = __("No articles found to display. You can assign articles to labels manually (see the Actions menu above) or use a filter.");
 					} else {
 						$message = __("No articles found to display.");
@@ -777,8 +811,8 @@ class Feeds extends Handler_Protected {
 
 		$result = false;
 
-		if ($feed < -10) {
-			$label_feed = -11-$feed;
+		if ($feed < LABEL_BASE_INDEX) {
+			$label_feed = feed_to_label_id($feed);
 			$result = db_query($this->link, "SELECT id FROM ttrss_labels2 WHERE
 							id = '$label_feed' AND owner_uid = " . $_SESSION['uid']);
 		} else if (!$cat_view && is_numeric($feed) && $feed > 0) {

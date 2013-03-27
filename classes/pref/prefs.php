@@ -121,8 +121,9 @@ class Pref_Prefs extends Handler_Protected {
 
 		global $access_level_names;
 
-		$prefs_blacklist = array("HIDE_READ_FEEDS", "FEEDS_SORT_BY_UNREAD",
-					"STRIP_UNSAFE_TAGS");
+		$prefs_blacklist = array("STRIP_UNSAFE_TAGS");
+
+		/* "FEEDS_SORT_BY_UNREAD", "HIDE_READ_FEEDS", "REVERSE_HEADLINES" */
 
 		$profile_blacklist = array("ALLOW_DUPLICATE_POSTS", "PURGE_OLD_DAYS",
 					"PURGE_UNREAD_ARTICLES", "DIGEST_ENABLE", "DIGEST_CATCHUP",
@@ -412,10 +413,12 @@ class Pref_Prefs extends Handler_Protected {
 			$profile_qpart = "profile IS NULL";
 		}
 
-		if ($_SESSION["prefs_show_advanced"])
+		/* if ($_SESSION["prefs_show_advanced"])
 			$access_query = "true";
 		else
-			$access_query = "(access_level = 0 AND section_id != 3)";
+			$access_query = "(access_level = 0 AND section_id != 3)"; */
+
+		$access_query = 'true';
 
 		$result = db_query($this->link, "SELECT DISTINCT
 			ttrss_user_prefs.pref_name,short_desc,help_text,value,type_name,
@@ -602,7 +605,7 @@ class Pref_Prefs extends Handler_Protected {
 
 		print "&nbsp;";
 
-		$checked = $_SESSION["prefs_show_advanced"] ? "checked='1'" : "";
+		/* $checked = $_SESSION["prefs_show_advanced"] ? "checked='1'" : "";
 
 		print "<input onclick='toggleAdvancedPrefs()'
 				id='prefs_show_advanced'
@@ -610,7 +613,7 @@ class Pref_Prefs extends Handler_Protected {
 				$checked
 				type=\"checkbox\"></input>
 				<label for='prefs_show_advanced'>" .
-				__("Show additional preferences") . "</label>";
+				__("Show additional preferences") . "</label>"; */
 
 		global $pluginhost;
 		$pluginhost->run_hooks($pluginhost::HOOK_PREFS_TAB_SECTION,
@@ -626,7 +629,9 @@ class Pref_Prefs extends Handler_Protected {
 
 		print "<h2>".__("Plugins")."</h2>";
 
-		print_notice(__("You will need to reload Tiny Tiny RSS for plugin changes to take effect."));
+		print_notice(__("Download more plugins at tt-rss.org <a class=\"visibleLink\" target=\"_blank\" href=\"http://tt-rss.org/forum/viewforum.php?f=22\">forums</a> or <a target=\"_blank\" class=\"visibleLink\" href=\"http://tt-rss.org/wiki/Plugins\">wiki</a>."));
+
+		print "<p class='insensitive'>" . __("You will need to reload Tiny Tiny RSS for plugin changes to take effect.") . "</p>";
 
 		print "<form dojoType=\"dijit.form.Form\" id=\"changePluginsForm\">";
 
@@ -685,7 +690,12 @@ class Pref_Prefs extends Handler_Protected {
 						type=\"checkbox\"></td>";
 
 				print "<td>$name</td>";
-				print "<td>" . htmlspecialchars($about[1]) . "</td>";
+				print "<td>" . htmlspecialchars($about[1]);
+				if (@$about[4]) {
+					print " &mdash; <a target=\"_blank\" class=\"visibleLink\"
+						href=\"".htmlspecialchars($about[4])."\">".__("more info")."</a>";
+				}
+				print "</td>";
 				print "<td>" . htmlspecialchars(sprintf("%.2f", $about[0])) . "</td>";
 				print "<td>" . htmlspecialchars($about[2]) . "</td>";
 
@@ -737,7 +747,13 @@ class Pref_Prefs extends Handler_Protected {
 					type=\"checkbox\"></td>";
 
 				print "<td><label for='FPCHK-$name'>$name</label></td>";
-				print "<td><label for='FPCHK-$name'>" . htmlspecialchars($about[1]) . "</label></td>";
+				print "<td><label for='FPCHK-$name'>" . htmlspecialchars($about[1]) . "</label>";
+				if (@$about[4]) {
+					print " &mdash; <a target=\"_blank\" class=\"visibleLink\"
+						href=\"".htmlspecialchars($about[4])."\">".__("more info")."</a>";
+				}
+				print "</td>";
+
 				print "<td>" . htmlspecialchars(sprintf("%.2f", $about[0])) . "</td>";
 				print "<td>" . htmlspecialchars($about[2]) . "</td>";
 

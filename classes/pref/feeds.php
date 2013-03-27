@@ -115,6 +115,32 @@ class Pref_Feeds extends Handler_Protected {
 				array_push($cat['items'], $this->feedlist_init_feed($i));
 			}
 
+			/* Plugin feeds for -1 */
+
+			global $pluginhost;
+
+			$feeds = $pluginhost->get_feeds(-1);
+
+			if ($feeds) {
+				foreach ($feeds as $feed) {
+					$feed_id = PluginHost::pfeed_to_feed_id($feed['id']);
+
+					$item = array();
+					$item['id'] = 'FEED:' . $feed_id;
+					$item['bare_id'] = (int)$feed_id;
+					$item['name'] = $feed['title'];
+					$item['checkbox'] = false;
+					$item['error'] = '';
+					$item['icon'] = $feed['icon'];
+
+					$item['param'] = '';
+					$item['unread'] = 0; //$feed['sender']->get_unread($feed['id']);
+					$item['type'] = 'feed';
+
+					array_push($cat['items'], $item);
+				}
+			}
+
 			if ($enable_cats) {
 				array_push($root['items'], $cat);
 			} else {
@@ -134,7 +160,7 @@ class Pref_Feeds extends Handler_Protected {
 
 				while ($line = db_fetch_assoc($result)) {
 
-					$label_id = -$line['id'] - 11;
+					$label_id = label_to_feed_id($line['id']);
 
 					$feed = $this->feedlist_init_feed($label_id, false, 0);
 
@@ -1700,8 +1726,8 @@ class Pref_Feeds extends Handler_Protected {
 			ccache_remove($link, $id, $owner_uid);
 
 		} else {
-			label_remove($link, -11-$id, $owner_uid);
-			ccache_remove($link, -11-$id, $owner_uid);
+			label_remove($link, feed_to_label_id($id), $owner_uid);
+			//ccache_remove($link, $id, $owner_uid); don't think labels are cached
 		}
 	}
 

@@ -1,4 +1,8 @@
 <?php
+	if (file_exists("install") && !file_exists("config.php")) {
+		header("Location: install/");
+	}
+
 	if (!file_exists("config.php")) {
 		print "<b>Fatal Error</b>: You forgot to copy
 		<b>config.php-dist</b> to <b>config.php</b> and edit it.\n";
@@ -35,9 +39,14 @@
 		if ($mobile->isTablet() && $pluginhost->get_plugin("digest")) {
 			header('Location: backend.php?op=digest');
 			exit;
+		} else if ($mobile->isMobile() && $pluginhost->get_plugin("mobile")) {
+			header('Location: backend.php?op=mobile');
+			exit;
+		} else if ($mobile->isMobile() && $pluginhost->get_plugin("digest")) {
+			header('Location: backend.php?op=digest');
+			exit;
 		}
 	}
-
 
 	login_sequence($link);
 

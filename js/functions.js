@@ -2,6 +2,7 @@ var notify_silent = false;
 var loading_progress = 0;
 var sanity_check_done = false;
 var init_params = {};
+var _label_base_index = -1024;
 
 Ajax.Base.prototype.initialize = Ajax.Base.prototype.initialize.wrap(
 	function (callOriginal, options) {
@@ -1338,6 +1339,8 @@ function backend_sanity_check_callback(transport) {
 				for (k in params) {
 					var v = params[k];
 					console.log("IP: " + k + " => " + v);
+
+					if (k == "label_base_index") _label_base_index = parseInt(v);
 				}
 			}
 
@@ -1986,3 +1989,13 @@ function htmlspecialchars_decode (string, quote_style) {
 
   return string;
 }
+
+
+function label_to_feed_id(label) {
+	return _label_base_index - 1 - Math.abs(label);
+}
+
+function feed_to_label_id(feed) {
+	return _label_base_index - 1 + Math.abs(feed);
+}
+
