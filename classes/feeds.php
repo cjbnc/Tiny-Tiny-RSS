@@ -444,9 +444,12 @@ class Feeds extends Handler_Protected {
 						}
 					}
 
-					$mouseover_attrs = "onmouseover='postMouseIn(event, $id)'
-						onmouseout='postMouseOut($id)'";
-                    $mouseover_attrs = "";
+					if (get_pref($this->link, 'DISABLE_HEADLINE_POPUPS')) {
+                        $mouseover_attrs = "";
+                    } 
+                    else {
+					    $mouseover_attrs = "onmouseover='postMouseIn(event, $id)'                            onmouseout='postMouseOut($id)'";
+                    }
 
 					$reply['content'] .= "<div class='$class' id='RROW-$id' $label_row_style $mouseover_attrs>";
 
@@ -546,9 +549,12 @@ class Feeds extends Handler_Protected {
 						}
 					}
 
-					$mouseover_attrs = "onmouseover='postMouseIn(event, $id)'
-						onmouseout='postMouseOut($id)'";
-                    $mouseover_attrs = "";
+					if (get_pref($this->link, 'DISABLE_HEADLINE_POPUPS')) {
+                        $mouseover_attrs = "";
+                    } 
+                    else {
+					    $mouseover_attrs = "onmouseover='postMouseIn(event, $id)'                            onmouseout='postMouseOut($id)'";
+                    }
 
 					$expanded_class = $expand_cdm ? "expanded" : "";
 
