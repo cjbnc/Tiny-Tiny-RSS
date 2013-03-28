@@ -349,6 +349,18 @@ class Handler_Public extends Handler {
 		include "rssfuncs.php";
 		// Update all feeds needing a update.
 		update_daemon_common($this->link, 0, true, false);
+
+		// Update feedbrowser
+		update_feedbrowser_cache($this->link);
+
+		// Purge orphans and cleanup tags
+		purge_orphans($this->link);
+
+		cleanup_tags($this->link, 14, 50000);
+
+		global $pluginhost;
+		$pluginhost->run_hooks($pluginhost::HOOK_UPDATE_TASK, "hook_update_task", $op);
+
 	}
 
 	function sharepopup() {
@@ -480,7 +492,6 @@ class Handler_Public extends Handler {
 	}
 
 	function login() {
-
 		$_SESSION["prefs_cache"] = array();
 
 		if (!SINGLE_USER_MODE) {
@@ -488,6 +499,14 @@ class Handler_Public extends Handler {
 			$login = db_escape_string($this->link, $_POST["login"]);
 			$password = $_POST["password"];
 			$remember_me = $_POST["remember_me"];
+
+			if ($remember_me) {
+				session_set_cookie_params(SESSION_COOKIE_LIFETIME);
+			} else {
+				session_set_cookie_params(0);
+			}
+
+			@session_start();
 
 			if (authenticate_user($this->link, $login, $password)) {
 				$_POST["password"] = "";
@@ -721,7 +740,7 @@ class Handler_Public extends Handler {
 				<body id='forgotpass'>";
 
 		print '<div class="floatingLogo"><img src="images/logo_small.png"></div>';
-		print "<h1>".__("Reset password")."</h1>";
+		print "<h1>".__("Password recovery")."</h1>";
 		print "<div class='content'>";
 
 		@$method = $_POST['method'];
@@ -729,6 +748,8 @@ class Handler_Public extends Handler {
 		if (!$method) {
 			$secretkey = uniqid();
 			$_SESSION["secretkey"] = $secretkey;
+
+			print_notice(__("You will need to provide valid account name and email. New password will be sent on your email address."));
 
 			print "<form method='POST' action='public.php'>";
 			print "<input type='hidden' name='secretkey' value='$secretkey'>";
@@ -764,7 +785,10 @@ class Handler_Public extends Handler {
 			if (($test != 4 && $test != 'four') || !$email || !$login) {
 				print_error(__('Some of the required form parameters are missing or incorrect.'));
 
-				print "<p><a href=\"public.php?op=forgotpass\">".__("Go back")."</a></p>";
+				print "<form method=\"GET\" action=\"public.php\">
+					<input type=\"hidden\" name=\"op\" value=\"forgotpass\">
+					<input type=\"submit\" value=\"".__("Go back")."\">
+					</form>";
 
 			} else if ($_SESSION["secretkey"] == $secretkey) {
 
@@ -776,16 +800,30 @@ class Handler_Public extends Handler {
 
 					Pref_Users::resetUserPassword($this->link, $id, false);
 
-					print "<p>".__("Completed.")."</p>";
+					print "<p>";
+
+					print_notice("Completed.");
+
+					print "<form method=\"GET\" action=\"index.php\">
+						<input type=\"submit\" value=\"".__("Return to Tiny Tiny RSS")."\">
+						</form>";
 
 				} else {
 					print_error(__("Sorry, login and email combination not found."));
-					print "<p><a href=\"public.php?op=forgotpass\">".__("Go back")."</a></p>";
+
+					print "<form method=\"GET\" action=\"public.php\">
+						<input type=\"hidden\" name=\"op\" value=\"forgotpass\">
+						<input type=\"submit\" value=\"".__("Go back")."\">
+						</form>";
+
 				}
 
 			} else {
 				print_error(__("Form secret key incorrect. Please enable cookies and try again."));
-				print "<p><a href=\"public.php?op=forgotpass\">".__("Go back")."</a></p>";
+				print "<form method=\"GET\" action=\"public.php\">
+					<input type=\"hidden\" name=\"op\" value=\"forgotpass\">
+					<input type=\"submit\" value=\"".__("Go back")."\">
+					</form>";
 
 			}
 

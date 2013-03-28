@@ -754,6 +754,7 @@
 		$_SESSION["prefs_cache"] = false;
 
 		if (SINGLE_USER_MODE) {
+			@session_start();
 			authenticate_user($link, "admin", null);
 			cache_prefs($link);
 			load_user_plugins($link, $_SESSION["uid"]);
@@ -1436,13 +1437,14 @@
 		if ($pluginhost) {
 			$feeds = $pluginhost->get_feeds(-1);
 
-			foreach ($feeds as $feed) {
-				$cv = array("id" => PluginHost::pfeed_to_feed_id($feed['id']),
-					"counter" => $feed['sender']->get_unread($feed['id']));
+			if (is_array($feeds)) {
+				foreach ($feeds as $feed) {
+					$cv = array("id" => PluginHost::pfeed_to_feed_id($feed['id']),
+						"counter" => $feed['sender']->get_unread($feed['id']));
 
-				array_push($ret_arr, $cv);
+					array_push($ret_arr, $cv);
+				}
 			}
-
 		}
 
 		return $ret_arr;
@@ -2270,6 +2272,10 @@
 				$view_query_part = " marked = true AND ";
 			}
 
+			if ($view_mode == "has_note") {
+				$view_query_part = " (note IS NOT NULL AND note != '') AND ";
+			}
+
 			if ($view_mode == "published") {
 				$view_query_part = " published = true AND ";
 			}
@@ -2653,7 +2659,7 @@
 
 				if ($entry->nodeName == 'img') {
 					if (($owner && get_pref($link, "STRIP_IMAGES", $owner)) ||
-							$force_remove_images) {
+							$force_remove_images || $_SESSION["bw_limit"]) {
 
 						$p = $doc->createElement('p');
 
@@ -2686,7 +2692,7 @@
 			'code', 'dd', 'del', 'details', 'div', 'dl', 'font',
 			'dt', 'em', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
 			'header', 'html', 'i', 'img', 'ins', 'kbd',
-			'li', 'nav', 'ol', 'p', 'pre', 'q', 's','small',
+			'li', 'nav', 'noscript', 'ol', 'p', 'pre', 'q', 's','small',
 			'source', 'span', 'strike', 'strong', 'sub', 'summary',
 			'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead',
 			'tr', 'track', 'tt', 'u', 'ul', 'var', 'wbr', 'video' );
@@ -2888,19 +2894,19 @@
 	function format_warning($msg, $id = "") {
 		global $link;
 		return "<div class=\"warning\" id=\"$id\">
-			<img src=\"images/sign_excl.svg\">$msg</div>";
+			<img src=\"images/sign_excl.svg\"><div class='inner'>$msg</div></div>";
 	}
 
 	function format_notice($msg, $id = "") {
 		global $link;
 		return "<div class=\"notice\" id=\"$id\">
-			<img src=\"images/sign_info.svg\">$msg</div>";
+			<img src=\"images/sign_info.svg\"><div class='inner'>$msg</div></div>";
 	}
 
 	function format_error($msg, $id = "") {
 		global $link;
 		return "<div class=\"error\" id=\"$id\">
-			<img src=\"images/sign_excl.svg\">$msg</div>";
+			<img src=\"images/sign_excl.svg\"><div class='inner'>$msg</div></div>";
 	}
 
 	function print_notice($msg) {
@@ -3657,7 +3663,7 @@
 				array_push($entries, $entry);
 			}
 
-			if ($_SESSION['uid'] && !get_pref($link, "STRIP_IMAGES")) {
+			if ($_SESSION['uid'] && !get_pref($link, "STRIP_IMAGES") && !$_SESSION["bw_limit"]) {
 				if ($always_display_enclosures ||
 							!preg_match("/<img/i", $article_content)) {
 
@@ -3687,13 +3693,15 @@
 				$rv .= "<hr clear='both'/>";
 			}
 
-			$rv .= "<br/><div dojoType=\"dijit.form.DropDownButton\">".
-				"<span>" . __('Attachments')."</span>";
-			$rv .= "<div dojoType=\"dijit.Menu\" style=\"display: none;\">";
+			$rv .= "<select onchange=\"openSelectedAttachment(this)\">".
+				"<option value=''>" . __('Attachments')."</option>";
 
-			foreach ($entries_html as $entry) { $rv .= $entry; };
+			foreach ($entries as $entry) {
+				$rv .= "<option value=\"".htmlspecialchars($entry["url"])."\">" . htmlspecialchars($entry["filename"]) . "</option>";
 
-			$rv .= "</div></div>";
+			};
+
+			$rv .= "</select>";
 		}
 
 		return $rv;

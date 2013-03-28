@@ -47,6 +47,9 @@ class API extends Handler {
 	}
 
 	function login() {
+		@session_destroy();
+		@session_start();
+
 		$login = db_escape_string($this->link, $_REQUEST["user"]);
 		$password = $_REQUEST["password"];
 		$password_base64 = base64_decode($_REQUEST["password"]);
@@ -122,6 +125,7 @@ class API extends Handler {
 	function getCategories() {
 		$unread_only = sql_bool_to_bool($_REQUEST["unread_only"]);
 		$enable_nested = sql_bool_to_bool($_REQUEST["enable_nested"]);
+		$include_empty = sql_bool_to_bool($_REQUEST['include_empty']);
 
 		// TODO do not return empty categories, return Uncategorized and standard virtual cats
 
@@ -144,7 +148,7 @@ class API extends Handler {
 		$cats = array();
 
 		while ($line = db_fetch_assoc($result)) {
-			if ($line["num_feeds"] > 0 || $line["num_cats"] > 0) {
+			if ($include_empty || $line["num_feeds"] > 0 || $line["num_cats"] > 0) {
 				$unread = getFeedUnread($this->link, $line["id"], true);
 
 				if ($enable_nested)
@@ -701,6 +705,23 @@ class API extends Handler {
 		}
 	}
 
+	function getFeedTree() {
+		$include_empty = sql_bool_to_bool($_REQUEST['include_empty']);
+
+		$pf = new Pref_Feeds($this->link, $_REQUEST);
+
+		$_REQUEST['mode'] = 2;
+		$_REQUEST['force_show_empty'] = $include_empty;
+
+		if ($pf){
+			$data = $pf->makefeedtree();
+			print $this->wrap(self::STATUS_OK, array("categories" => $data));
+		} else {
+			print $this->wrap(self::STATUS_ERR, array("error" =>
+				'UNABLE_TO_INSTANTIATE_OBJECT'));
+		}
+
+	}
 }
 
 ?>

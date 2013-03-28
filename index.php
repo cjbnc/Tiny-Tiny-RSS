@@ -136,7 +136,6 @@
 
 <div id="notify" class="notify"><span id="notify_body">&nbsp;</span></div>
 <div id="cmdline" style="display : none"></div>
-<div id="auxDlg" style="display : none"></div>
 <div id="headlines-tmp" style="display : none"></div>
 
 <div id="main" dojoType="dijit.layout.BorderContainer">
@@ -170,6 +169,7 @@
 			<option value="published"><?php echo __('Published') ?></option>
 			<option value="unread"><?php echo __('Unread') ?></option>
 			<option value="unread_first"><?php echo __('Unread First') ?></option>
+			<option value="has_note"><?php echo __('With Note') ?></option>
 			<!-- <option value="noscores"><?php echo __('Ignore Scoring') ?></option> -->
 		</select>
 

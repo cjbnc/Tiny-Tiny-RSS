@@ -347,8 +347,6 @@ function view(id) {
 
 		console.log("cache check result: " + (cached_article != false));
 
-		hideAuxDlg();
-
 		var query = "?op=article&method=view&id=" + param_escape(id);
 
 		var neighbor_ids = getRelativePostIds(id);
@@ -1433,8 +1431,6 @@ function cdmExpandArticle(id) {
 
 		if (!$("RROW-" + id)) return false;
 
-		hideAuxDlg();
-
 		var elem = $("CICD-" + getActiveArticleId());
 
 		if (id == getActiveArticleId() && Element.visible(elem))
@@ -1642,8 +1638,6 @@ function getVisibleArticleIds() {
 function cdmClicked(event, id) {
 	try {
 		//var shift_key = event.shiftKey;
-
-		hideAuxDlg();
 
 		if (!event.ctrlKey) {
 
@@ -2121,3 +2115,16 @@ function displayArticleUrl(id) {
 	}
 }
 
+function openSelectedAttachment(elem) {
+	try {
+		var url = elem[elem.selectedIndex].value;
+
+		if (url) {
+			window.open(url);
+			elem.selectedIndex = 0;
+		}
+
+	} catch (e) {
+		exception_error("openSelectedAttachment", e);
+	}
+}
