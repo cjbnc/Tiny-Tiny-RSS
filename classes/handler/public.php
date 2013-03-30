@@ -14,20 +14,16 @@ class Handler_Public extends Handler {
 
 		if (!$limit) $limit = 100;
 
-		if (get_pref($this->link, "SORT_HEADLINES_BY_FEED_DATE", $owner_uid)) {
-			$date_sort_field = "updated";
-		} else {
-			$date_sort_field = "date_entered";
-		}
+		$date_sort_field = "date_entered DESC, updated DESC";
 
 		if ($feed == -2)
-			$date_sort_field = "last_published";
+			$date_sort_field = "last_published DESC";
 		else if ($feed == -1)
-			$date_sort_field = "last_marked";
+			$date_sort_field = "last_marked DESC";
 
 		$qfh_ret = queryFeedHeadlines($this->link, $feed,
 			$limit, $view_mode, $is_cat, $search, $search_mode,
-			"$date_sort_field DESC", $offset, $owner_uid,
+			$date_sort_field, $offset, $owner_uid,
 			false, 0, false, true);
 
 		$result = $qfh_ret[0];
@@ -369,15 +365,13 @@ class Handler_Public extends Handler {
 		}
 
 		header('Content-Type: text/html; charset=utf-8');
-		print "<html>
-				<head>
-					<title>Tiny Tiny RSS</title>
-					<link rel=\"stylesheet\" type=\"text/css\" href=\"utility.css\">
-					<script type=\"text/javascript\" src=\"lib/prototype.js\"></script>
-					<script type=\"text/javascript\" src=\"lib/scriptaculous/scriptaculous.js?load=effects,dragdrop,controls\"></script>
-					<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
-				</head>
-				<body id='sharepopup'>";
+		print "<html><head><title>Tiny Tiny RSS</title>";
+
+		print stylesheet_tag("utility.css");
+		print javascript_tag("lib/prototype.js");
+		print javascript_tag("lib/scriptaculous/scriptaculous.js?load=effects,dragdrop,controls");
+		print "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
+			</head><body id='sharepopup'>";
 
 		$action = $_REQUEST["action"];
 
@@ -729,15 +723,13 @@ class Handler_Public extends Handler {
 
 	function forgotpass() {
 		header('Content-Type: text/html; charset=utf-8');
-		print "<html>
-				<head>
-					<title>Tiny Tiny RSS</title>
-					<link rel=\"stylesheet\" type=\"text/css\" href=\"utility.css\">
-					<script type=\"text/javascript\" src=\"lib/prototype.js\"></script>
-					<script type=\"text/javascript\" src=\"lib/scriptaculous/scriptaculous.js?load=effects,dragdrop,controls\"></script>
-					<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
-				</head>
-				<body id='forgotpass'>";
+		print "<html><head><title>Tiny Tiny RSS</title>";
+
+		print stylesheet_tag("utility.css");
+		print javascript_tag("lib/prototype.js");
+
+		print "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
+			</head><body id='forgotpass'>";
 
 		print '<div class="floatingLogo"><img src="images/logo_small.png"></div>';
 		print "<h1>".__("Password recovery")."</h1>";
@@ -746,13 +738,9 @@ class Handler_Public extends Handler {
 		@$method = $_POST['method'];
 
 		if (!$method) {
-			$secretkey = uniqid();
-			$_SESSION["secretkey"] = $secretkey;
-
 			print_notice(__("You will need to provide valid account name and email. New password will be sent on your email address."));
 
 			print "<form method='POST' action='public.php'>";
-			print "<input type='hidden' name='secretkey' value='$secretkey'>";
 			print "<input type='hidden' name='method' value='do'>";
 			print "<input type='hidden' name='op' value='forgotpass'>";
 
@@ -777,7 +765,6 @@ class Handler_Public extends Handler {
 			print "</form>";
 		} else if ($method == 'do') {
 
-			$secretkey = $_POST["secretkey"];
 			$login = db_escape_string($this->link, $_POST["login"]);
 			$email = db_escape_string($this->link, $_POST["email"]);
 			$test = db_escape_string($this->link, $_POST["test"]);
@@ -790,7 +777,7 @@ class Handler_Public extends Handler {
 					<input type=\"submit\" value=\"".__("Go back")."\">
 					</form>";
 
-			} else if ($_SESSION["secretkey"] == $secretkey) {
+			} else {
 
 				$result = db_query($this->link, "SELECT id FROM ttrss_users
 					WHERE login = '$login' AND email = '$email'");
@@ -802,7 +789,7 @@ class Handler_Public extends Handler {
 
 					print "<p>";
 
-					print_notice("Completed.");
+					print "<p>"."Completed."."</p>";
 
 					print "<form method=\"GET\" action=\"index.php\">
 						<input type=\"submit\" value=\"".__("Return to Tiny Tiny RSS")."\">
@@ -817,14 +804,6 @@ class Handler_Public extends Handler {
 						</form>";
 
 				}
-
-			} else {
-				print_error(__("Form secret key incorrect. Please enable cookies and try again."));
-				print "<form method=\"GET\" action=\"public.php\">
-					<input type=\"hidden\" name=\"op\" value=\"forgotpass\">
-					<input type=\"submit\" value=\"".__("Go back")."\">
-					</form>";
-
 			}
 
 		}

@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 109);
+	define('SCHEMA_VERSION', 111);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -548,6 +548,9 @@
 			if (array_search($line["pref_name"], $active_prefs) === FALSE) {
 //				print "adding " . $line["pref_name"] . "<br>";
 
+				$line["def_value"] = db_escape_string($link, $line["def_value"]);
+				$line["pref_name"] = db_escape_string($link, $line["pref_name"]);
+
 				if (get_schema_version($link) < 63) {
 					db_query($link, "INSERT INTO ttrss_user_prefs
 						(owner_uid,pref_name,value) VALUES
@@ -996,9 +999,6 @@
 
 			//if (preg_match("/^-?[0-9][0-9]*$/", $feed) != false) {
 
-			$ref_check_qpart = ($max_id &&
-				!get_pref($link, 'REVERSE_HEADLINES')) ? "ref_id <= '$max_id'" : "true";
-
 			if (is_numeric($feed)) {
 				if ($cat_view) {
 
@@ -1018,7 +1018,7 @@
 						db_query($link, "UPDATE ttrss_user_entries
 							SET unread = false,last_read = NOW()
 							WHERE feed_id IN (SELECT id FROM ttrss_feeds WHERE $cat_qpart)
-							AND $ref_check_qpart AND unread = true
+							AND unread = true
 							AND owner_uid = $owner_uid");
 
 					} else if ($feed == -2) {
@@ -1026,7 +1026,6 @@
 						db_query($link, "UPDATE ttrss_user_entries
 							SET unread = false,last_read = NOW() WHERE (SELECT COUNT(*)
 								FROM ttrss_user_labels2 WHERE article_id = ref_id) > 0
-								AND $ref_check_qpart
 								AND unread = true AND owner_uid = $owner_uid");
 					}
 
@@ -1035,7 +1034,7 @@
 					db_query($link, "UPDATE ttrss_user_entries
 							SET unread = false,last_read = NOW()
 							WHERE feed_id = '$feed'
-							AND $ref_check_qpart AND unread = true
+							AND unread = true
 							AND owner_uid = $owner_uid");
 
 				} else if ($feed < 0 && $feed > LABEL_BASE_INDEX) { // special, like starred
@@ -1044,7 +1043,7 @@
 						db_query($link, "UPDATE ttrss_user_entries
 							SET unread = false,last_read = NOW()
 							WHERE marked = true
-							AND $ref_check_qpart AND unread = true
+							AND unread = true
 							AND owner_uid = $owner_uid");
 					}
 
@@ -1052,7 +1051,7 @@
 						db_query($link, "UPDATE ttrss_user_entries
 							SET unread = false,last_read = NOW()
 							WHERE published = true
-							AND $ref_check_qpart AND unread = true
+							AND unread = true
 							AND owner_uid = $owner_uid");
 					}
 
@@ -1085,7 +1084,7 @@
 					if ($feed == -4) {
 						db_query($link, "UPDATE ttrss_user_entries
 							SET unread = false,last_read = NOW()
-							WHERE $ref_check_qpart AND unread = true AND
+							WHERE unread = true AND
 							owner_uid = $owner_uid");
 					}
 
@@ -1096,7 +1095,6 @@
 					db_query($link, "UPDATE ttrss_user_entries, ttrss_user_labels2
 						SET unread = false, last_read = NOW()
 							WHERE label_id = '$label_id' AND unread = true
-							AND $ref_check_qpart
 							AND owner_uid = '$owner_uid' AND ref_id = article_id");
 
 				}
@@ -1114,7 +1112,7 @@
 				while ($line = db_fetch_assoc($result)) {
 					db_query($link, "UPDATE ttrss_user_entries SET
 						unread = false, last_read = NOW()
-						WHERE $ref_check_qpart AND unread = true
+						WHERE unread = true
 						AND int_id = " . $line["post_int_id"]);
 				}
 				db_query($link, "COMMIT");
@@ -2252,7 +2250,7 @@
 
 			$view_query_part = "";
 
-			if ($view_mode == "adaptive" || $view_query_part == "noscores") {
+			if ($view_mode == "adaptive") {
 				if ($search) {
 					$view_query_part = " ";
 				} else if ($feed != -1) {
@@ -2282,10 +2280,6 @@
 
 			if ($view_mode == "unread" && $feed != -6) {
 				$view_query_part = " unread = true AND ";
-			}
-
-			if ($view_mode == "updated") {
-				$view_query_part = " (last_read is null and unread = false) AND ";
 			}
 
 			if ($limit > 0) {
@@ -2361,11 +2355,7 @@
 				$allow_archived = true;
 
 				if (!$override_order) {
-					if (get_pref($link, 'REVERSE_HEADLINES', $owner_uid)) {
-						$override_order = "date_entered, updated";
-					} else {
-						$override_order = "last_marked DESC, date_entered DESC, updated DESC";
-					}
+					$override_order = "last_marked DESC, date_entered DESC, updated DESC";
 				}
 
 			} else if ($feed == -2) { // published virtual feed OR labels category
@@ -2376,11 +2366,7 @@
 					$allow_archived = true;
 
 					if (!$override_order) {
-						if (get_pref($link, 'REVERSE_HEADLINES', $owner_uid)) {
-							$override_order = "date_entered, updated";
-						} else {
-							$override_order = "last_published DESC, date_entered DESC, updated DESC";
-						}
+						$override_order = "last_published DESC, date_entered DESC, updated DESC";
 					}
 
 				} else {
@@ -2434,15 +2420,7 @@
 				$date_sort_field = "date_entered";
 			}
 
-			if (get_pref($link, 'REVERSE_HEADLINES', $owner_uid)) {
-				$order_by = "$date_sort_field, updated";
-			} else {
-				$order_by = "$date_sort_field DESC, updated DESC";
-			}
-
-			if ($view_mode != "noscores") {
-				$order_by = "score DESC, $order_by";
-			}
+			$order_by = "$date_sort_field DESC, updated DESC";
 
 			if ($view_mode == "unread_first") {
 				$order_by = "unread DESC, $order_by";
@@ -3693,7 +3671,7 @@
 				$rv .= "<hr clear='both'/>";
 			}
 
-			$rv .= "<select onchange=\"openSelectedAttachment(this)\">".
+			$rv .= "<select class=\"attachments\" onchange=\"openSelectedAttachment(this)\">".
 				"<option value=''>" . __('Attachments')."</option>";
 
 			foreach ($entries as $entry) {
@@ -3820,7 +3798,6 @@
 
 			if (count($ids) > 0) {
 				$ids = join(",", $ids);
-				print ".";
 
 				$tmp_result = db_query($link, "DELETE FROM ttrss_tags WHERE id IN ($ids)");
 				$tags_deleted += db_affected_rows($link, $tmp_result);
@@ -3830,8 +3807,6 @@
 
 			$limit -= $limit_part;
 		}
-
-		print "\n";
 
 		return $tags_deleted;
 	}

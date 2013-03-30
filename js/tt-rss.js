@@ -36,6 +36,9 @@ function setActiveFeedId(id, is_cat) {
 		_active_feed_id = id;
 		_active_feed_is_cat = is_cat;
 
+		$("headlines-frame").setAttribute("feed-id", id);
+		$("headlines-frame").setAttribute("is-cat", is_cat ? 1 : 0);
+
 		selectFeed(id, is_cat);
 	} catch (e) {
 		exception_error("setActiveFeedId", e);
@@ -851,13 +854,27 @@ function inPreferences() {
 function reverseHeadlineOrder() {
 	try {
 
-		var query_str = "?op=rpc&method=togglepref&key=REVERSE_HEADLINES";
+		/* var query_str = "?op=rpc&method=togglepref&key=REVERSE_HEADLINES";
 
 		new Ajax.Request("backend.php", {
 			parameters: query_str,
 			onComplete: function(transport) {
 					viewCurrentFeed();
-				} });
+				} }); */
+
+		var toolbar = document.forms["main_toolbar_form"];
+		var order_by = dijit.getEnclosingWidget(toolbar.order_by);
+
+		var value = order_by.attr('value');
+
+		if (value == "date_reverse")
+			value = "default";
+		else
+			value = "date_reverse";
+
+		order_by.attr('value', value);
+
+		viewCurrentFeed();
 
 	} catch (e) {
 		exception_error("reverseHeadlineOrder", e);

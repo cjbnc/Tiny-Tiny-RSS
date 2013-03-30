@@ -243,7 +243,6 @@ function render_article(article) {
 function showArticleInHeadlines(id) {
 
 	try {
-
 		selectArticles("none");
 
 		var crow = $("RROW-" + id);
@@ -253,6 +252,7 @@ function showArticleInHeadlines(id) {
 		var article_is_unread = crow.hasClassName("Unread");
 
 		crow.removeClassName("Unread");
+		crow.addClassName("active");
 
 		selectArticles('none');
 
@@ -337,6 +337,9 @@ function article_callback2(transport, id) {
 
 function view(id) {
 	try {
+		var oldrow = $("RROW-" + getActiveArticleId());
+		if (oldrow) oldrow.removeClassName("active");
+
 		var crow = $("RROW-" + id);
 
 		if (!crow) return;
@@ -635,12 +638,6 @@ function toggleUnread(id, cmode, effect) {
 				if (row.hasClassName("Unread")) {
 					row.removeClassName("Unread");
 
-					if (effect) {
-						new Effect.Highlight(row, {duration: 1, startcolor: "#fff7d5",
-							afterFinish: toggleUnread_afh,
-							queue: { position:'end', scope: 'TMRQ-' + id, limit: 1 } } );
-					}
-
 				} else {
 					row.addClassName("Unread");
 				}
@@ -648,12 +645,6 @@ function toggleUnread(id, cmode, effect) {
 			} else if (cmode == 0) {
 
 				row.removeClassName("Unread");
-
-				if (effect) {
-					new Effect.Highlight(row, {duration: 1, startcolor: "#fff7d5",
-						afterFinish: toggleUnread_afh,
-						queue: { position:'end', scope: 'TMRQ-' + id, limit: 1 } } );
-				}
 
 			} else if (cmode == 1) {
 				row.addClassName("Unread");
@@ -1150,7 +1141,9 @@ function cdmScrollToArticleId(id, force) {
 
 		if (force || e.offsetTop+e.offsetHeight > (ctr.scrollTop+ctr.offsetHeight) ||
 				e.offsetTop < ctr.scrollTop) {
-			ctr.scrollTop = e.offsetTop;
+
+			// expanded cdm has a 4px margin now
+			ctr.scrollTop = parseInt(e.offsetTop) - 4;
 		}
 
 	} catch (e) {
@@ -1410,6 +1403,7 @@ function cdmCollapseArticle(event, id) {
 		  	Element.hide(elem);
 			Element.show("CEXC-" + id);
 			Element.hide(collapse);
+			row.removeClassName("active");
 
 			markHeadline(id, false);
 
@@ -1431,6 +1425,8 @@ function cdmExpandArticle(id) {
 
 		if (!$("RROW-" + id)) return false;
 
+		var oldrow = $("RROW-" + getActiveArticleId());
+
 		var elem = $("CICD-" + getActiveArticleId());
 
 		if (id == getActiveArticleId() && Element.visible(elem))
@@ -1447,8 +1443,9 @@ function cdmExpandArticle(id) {
 		  	Element.hide(elem);
 			Element.show("CEXC-" + getActiveArticleId());
 			Element.hide(collapse);
-			$("RROW-" + getActiveArticleId()).removeClassName("active");
 		}
+
+		if (oldrow) oldrow.removeClassName("active");
 
 		setActiveArticleId(id);
 
@@ -1469,7 +1466,6 @@ function cdmExpandArticle(id) {
 			Element.show(elem);
 			Element.hide("CEXC-" + id);
 			Element.show(collapse);
-			$("RROW-" + id).addClassName("active");
 		}
 
 		var new_offset = $("RROW-" + id).offsetTop;
@@ -1479,6 +1475,7 @@ function cdmExpandArticle(id) {
 
 		toggleUnread(id, 0, true);
 		toggleSelected(id);
+		$("RROW-" + id).addClassName("active");
 
 	} catch (e) {
 		exception_error("cdmExpandArticle", e);
@@ -1645,14 +1642,18 @@ function cdmClicked(event, id) {
 				return cdmExpandArticle(id);
 			} else {
 
+				var elem = $("RROW-" + getActiveArticleId());
+
+				if (elem) elem.removeClassName("active");
+
 				selectArticles("none");
 				toggleSelected(id);
 
 				var elem = $("RROW-" + id);
 				var article_is_unread = elem.hasClassName("Unread");
 
-				if (elem)
-					elem.removeClassName("Unread");
+				elem.removeClassName("Unread");
+				elem.addClassName("active");
 
 				setActiveArticleId(id);
 

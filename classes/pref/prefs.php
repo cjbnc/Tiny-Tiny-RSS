@@ -113,15 +113,14 @@ class Pref_Prefs extends Handler_Protected {
 			WHERE $profile_qpart AND owner_uid = ".$_SESSION["uid"]);
 
 		initialize_user_prefs($this->link, $_SESSION["uid"], $_SESSION["profile"]);
-
-		print "PREFS_THEME_CHANGED";
 	}
 
 	function index() {
 
 		global $access_level_names;
 
-		$prefs_blacklist = array("STRIP_UNSAFE_TAGS");
+		$prefs_blacklist = array("STRIP_UNSAFE_TAGS", "REVERSE_HEADLINES",
+			"SORT_HEADLINES_BY_FEED_DATE");
 
 		/* "FEEDS_SORT_BY_UNREAD", "HIDE_READ_FEEDS", "REVERSE_HEADLINES" */
 
@@ -388,11 +387,7 @@ class Pref_Prefs extends Handler_Protected {
 				parameters: dojo.objectToQuery(this.getValues()),
 				onComplete: function(transport) {
 					var msg = transport.responseText;
-					if (msg.match('PREFS_THEME_CHANGED')) {
-						window.location.reload();
-					} else {
-						notify_info(msg);
-					}
+					notify_info(msg);
 			} });
 		}
 		</script>";
@@ -494,6 +489,14 @@ class Pref_Prefs extends Handler_Protected {
 
 				print "<button dojoType=\"dijit.form.Button\"
 					onclick=\"customizeCSS()\">" . __('Customize') . "</button>";
+
+			} else if ($pref_name == "USER_CSS_THEME") {
+
+				$themes = array_map("basename", glob("themes/*.css"));
+
+				print_select($pref_name, $value, $themes,
+					'dojoType="dijit.form.Select"');
+
 
 			} else if ($pref_name == "DEFAULT_ARTICLE_LIMIT") {
 

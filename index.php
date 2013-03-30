@@ -65,6 +65,14 @@
 	<?php echo stylesheet_tag("tt-rss.css"); ?>
 	<?php echo stylesheet_tag("cdm.css"); ?>
 
+	<?php if ($_SESSION["uid"]) {
+		$theme = get_pref($link, "USER_CSS_THEME", $_SESSION["uid"], false);
+		if ($theme) {
+			echo stylesheet_tag("themes/$theme");
+		}
+	}
+	?>
+
 	<?php print_user_stylesheet($link) ?>
 
 	<style type="text/css">
@@ -177,9 +185,8 @@
 			onchange="viewModeChanged()"
 			dojoType="dijit.form.Select" name="order_by">
 			<option selected="selected" value="default"><?php echo __('Default') ?></option>
-			<option value="date"><?php echo __('Date') ?></option>
-			<option value="title"><?php echo __('Title') ?></option>
-			<option value="score"><?php echo __('Score') ?></option>
+			<option value="feed_dates"><?php echo __('Newest first') ?></option>
+			<option value="date_reverse"><?php echo __('Oldest first') ?></option>
 		</select>
 
 		<!-- deprecated -->

@@ -39,6 +39,14 @@
 	<?php echo stylesheet_tag("tt-rss.css"); ?>
 	<?php echo stylesheet_tag("prefs.css"); ?>
 
+	<?php if ($_SESSION["uid"]) {
+		$theme = get_pref($link, "USER_CSS_THEME", $_SESSION["uid"], false);
+		if ($theme) {
+			echo stylesheet_tag("themes/$theme");
+		}
+	}
+	?>
+
 	<?php print_user_stylesheet($link) ?>
 
 	<link rel="shortcut icon" type="image/png" href="images/favicon.png"/>
@@ -134,7 +142,11 @@
 
 <div id="footer" dojoType="dijit.layout.ContentPane" region="bottom">
 	<a class="insensitive" target="_blank" href="http://tt-rss.org/">
-	Tiny Tiny RSS</a> &copy; 2005-<?php echo date('Y') ?>
+	Tiny Tiny RSS</a>
+	<?php if (!defined('HIDE_VERSION')) { ?>
+		 v<?php echo VERSION ?>
+	<?php } ?>
+	&copy; 2005-<?php echo date('Y') ?>
 	<a class="insensitive" target="_blank"
 	href="http://fakecake.org/">Andrew Dolgov</a>
 </div> <!-- footer -->

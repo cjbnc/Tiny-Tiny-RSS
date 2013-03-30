@@ -218,7 +218,7 @@ class Feeds extends Handler_Protected {
 		}
 //		error_log("search_mode: " . $search_mode);
 
-		if (!$cat_view && is_numeric($feed) && $feed < PLUGIN_FEED_BASE_INDEX) {
+		if (!$cat_view && is_numeric($feed) && $feed < PLUGIN_FEED_BASE_INDEX && $feed > LABEL_BASE_INDEX) {
 			global $pluginhost;
 
 			$handler = $pluginhost->get_feed_handler(
@@ -451,7 +451,7 @@ class Feeds extends Handler_Protected {
 					    $mouseover_attrs = "onmouseover='postMouseIn(event, $id)'                            onmouseout='postMouseOut($id)'";
                     }
 
-					$reply['content'] .= "<div class='$class' id='RROW-$id' $label_row_style $mouseover_attrs>";
+					$reply['content'] .= "<div class='hl $class' id='RROW-$id' $label_row_style $mouseover_attrs>";
 
 					$reply['content'] .= "<div class='hlLeft'>";
 
@@ -466,7 +466,7 @@ class Feeds extends Handler_Protected {
 
 					$reply['content'] .= "<div onclick='return hlClicked(event, $id)'
 						class=\"hlTitle\"><span class='hlContent$hlc_suffix'>";
-					$reply['content'] .= "<a id=\"RTITLE-$id\"
+					$reply['content'] .= "<a id=\"RTITLE-$id\" class=\"title\"
 						href=\"" . htmlspecialchars($line["link"]) . "\"
 						onclick=\"\">" .
 						truncate_string($line["title"], 200);
@@ -556,7 +556,7 @@ class Feeds extends Handler_Protected {
 					    $mouseover_attrs = "onmouseover='postMouseIn(event, $id)'                            onmouseout='postMouseOut($id)'";
                     }
 
-					$expanded_class = $expand_cdm ? "expanded" : "";
+					$expanded_class = $expand_cdm ? "expanded" : "expandable";
 
 					$reply['content'] .= "<div class=\"cdm $expanded_class $class\"
 						id=\"RROW-$id\" $mouseover_attrs'>";
@@ -870,35 +870,12 @@ class Feeds extends Handler_Protected {
 
 		$override_order = false;
 
-		if (get_pref($this->link, "SORT_HEADLINES_BY_FEED_DATE", $owner_uid)) {
-			$date_sort_field = "updated";
-		} else {
-			$date_sort_field = "date_entered";
-		}
-
 		switch ($order_by) {
-			case "date":
-				if (get_pref($this->link, 'REVERSE_HEADLINES', $owner_uid)) {
-					$override_order = "$date_sort_field";
-				} else {
-					$override_order = "$date_sort_field DESC";
-				}
+			case "date_reverse":
+				$override_order = "date_entered, updated";
 				break;
-
-			case "title":
-				if (get_pref($this->link, 'REVERSE_HEADLINES', $owner_uid)) {
-					$override_order = "title DESC, $date_sort_field";
-				} else {
-					$override_order = "title, $date_sort_field DESC";
-				}
-				break;
-
-			case "score":
-				if (get_pref($this->link, 'REVERSE_HEADLINES', $owner_uid)) {
-					$override_order = "score, $date_sort_field";
-				} else {
-					$override_order = "score DESC, $date_sort_field DESC";
-				}
+			case "feed_dates":
+				$override_order = "updated DESC";
 				break;
 		}
 

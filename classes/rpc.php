@@ -152,6 +152,8 @@ class RPC extends Handler_Protected {
 		$result = db_query($this->link, "DELETE FROM ttrss_user_entries
 		WHERE ref_id IN ($ids) AND owner_uid = " . $_SESSION["uid"]);
 
+		purge_orphans($this->link);
+
 		print json_encode(array("message" => "UPDATE_COUNTERS"));
 	}
 
@@ -544,9 +546,8 @@ class RPC extends Handler_Protected {
 	function catchupFeed() {
 		$feed_id = db_escape_string($this->link, $_REQUEST['feed_id']);
 		$is_cat = db_escape_string($this->link, $_REQUEST['is_cat']) == "true";
-		$max_id = (int) db_escape_string($this->link, $_REQUEST['max_id']);
 
-		catchup_feed($this->link, $feed_id, $is_cat, false, $max_id);
+		catchup_feed($this->link, $feed_id, $is_cat, false);
 
 		print json_encode(array("message" => "UPDATE_COUNTERS"));
 	}
