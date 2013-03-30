@@ -108,7 +108,7 @@
 		$random_qpart = sql_random_function();
 
 		// We search for feed needing update.
-		$result = db_query($link, "SELECT DISTINCT ttrss_feeds.feed_url
+		$result = db_query($link, "SELECT DISTINCT ttrss_feeds.feed_url,$random_qpart
 			FROM
 				ttrss_feeds, ttrss_users, ttrss_user_prefs
 			WHERE
@@ -117,7 +117,7 @@
 				AND ttrss_user_prefs.pref_name = 'DEFAULT_UPDATE_INTERVAL'
 				$login_thresh_qpart $update_limit_qpart
 				$updstart_thresh_qpart
-			ORDER BY feed_url $query_limit");
+			ORDER BY $random_qpart $query_limit");
 
 		$user_prefs_cache = array();
 
@@ -147,6 +147,8 @@
 		expire_cached_files($debug);
 		expire_lock_files($debug);
 
+		$nf = 0;
+
 		// For each feed, we call the feed update function.
 		foreach ($feeds_to_update as $feed) {
 			if($debug) _debug("Base feed: $feed");
@@ -167,6 +169,7 @@
 				while ($tline = db_fetch_assoc($tmp_result)) {
 					if($debug) _debug(" => " . $tline["last_updated"] . ", " . $tline["id"]);
 					update_rss_feed($link, $tline["id"], true);
+					++$nf;
 				}
 			}
 		}
@@ -175,6 +178,8 @@
 
 		// Send feed digests by email if needed.
 		send_headlines_digests($link, $debug);
+
+		return $nf;
 
 	} // function update_daemon_common
 
@@ -239,6 +244,8 @@
 
 		$rss = false;
 		$rss_hash = false;
+		$cache_timestamp = file_exists($cache_filename) ? filemtime($cache_filename) : 0;
+		$last_updated_timestamp = strtotime($last_updated);
 
 		if (file_exists($cache_filename) &&
 			is_readable($cache_filename) &&
@@ -249,11 +256,18 @@
 					_debug("update_rss_feed: using local cache.");
 				}
 
-				@$rss_data = file_get_contents($cache_filename);
+				if ($cache_timestamp > $last_updated_timestamp) {
+					@$rss_data = file_get_contents($cache_filename);
 
-				if ($rss_data) {
-					$rss_hash = sha1($rss_data);
-					@$rss = unserialize($rss_data);
+					if ($rss_data) {
+						$rss_hash = sha1($rss_data);
+						@$rss = unserialize($rss_data);
+					}
+				} else {
+					if ($debug_enabled) {
+						_debug("update_rss_feed: local cache valid and older than last_updated, nothing to do.");
+					}
+					return;
 				}
 		}
 
@@ -261,11 +275,12 @@
 
 			if (!$feed_data) {
 				if ($debug_enabled) {
-					_debug("update_rss_feed: fetching [$fetch_url]...");
+					_debug("update_rss_feed: fetching [$fetch_url] (ts: $cache_timestamp/$last_updated_timestamp)");
 				}
 
 				$feed_data = fetch_file_contents($fetch_url, false,
-					$auth_login, $auth_pass, false, $no_cache ? 15 : 45);
+					$auth_login, $auth_pass, false, $no_cache ? 15 : 45,
+					max($last_updated_timestamp, $cache_timestamp));
 
 				if ($debug_enabled) {
 					_debug("update_rss_feed: fetch done.");
@@ -275,12 +290,22 @@
 
 			if (!$feed_data) {
 				global $fetch_last_error;
+				global $fetch_last_error_code;
 
 				if ($debug_enabled) {
-					_debug("update_rss_feed: unable to fetch: $fetch_last_error");
+					_debug("update_rss_feed: unable to fetch: $fetch_last_error [$fetch_last_error_code]");
 				}
 
-				$error_escaped = db_escape_string($link, $fetch_last_error);
+				$error_escaped = '';
+
+				// If-Modified-Since
+				if ($fetch_last_error_code != 304) {
+					$error_escaped = db_escape_string($link, $fetch_last_error);
+				} else {
+					if ($debug_enabled) {
+						_debug("update_rss_feed: source claims data not modified, nothing to do.");
+					}
+				}
 
 				db_query($link,
 					"UPDATE ttrss_feeds SET last_error = '$error_escaped',

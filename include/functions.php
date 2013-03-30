@@ -6,6 +6,7 @@
 	define('PLUGIN_FEED_BASE_INDEX', -128);
 
 	$fetch_last_error = false;
+	$fetch_last_error_code = false;
 	$pluginhost = false;
 
 	function __autoload($class) {
@@ -287,9 +288,10 @@
 		}
 	}
 
-	function fetch_file_contents($url, $type = false, $login = false, $pass = false, $post_query = false, $timeout = false) {
+	function fetch_file_contents($url, $type = false, $login = false, $pass = false, $post_query = false, $timeout = false, $timestamp = 0) {
 
 		global $fetch_last_error;
+		global $fetch_last_error_code;
 
 		if (function_exists('curl_init') && !ini_get("open_basedir")) {
 
@@ -297,6 +299,11 @@
 				$ch = curl_init(geturl($url));
 			} else {
 				$ch = curl_init($url);
+			}
+
+			if ($timestamp) {
+				curl_setopt($ch, CURLOPT_HTTPHEADER,
+					array("If-Modified-Since: ".gmdate('D, d M Y H:i:s \G\M\T', $timestamp)));
 			}
 
 			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout ? $timeout : 15);
@@ -334,6 +341,8 @@
 
 			$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 			$content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+
+			$fetch_last_error_code = $http_code;
 
 			if ($http_code != 200 || $type && strpos($content_type, "$type") === false) {
 				if (curl_errno($ch) != 0) {
@@ -582,7 +591,6 @@
 	function authenticate_user($link, $login, $password, $check_only = false) {
 
 		if (!SINGLE_USER_MODE) {
-
 			$user_id = false;
 
 			global $pluginhost;
@@ -597,6 +605,8 @@
 			}
 
 			if ($user_id && !$check_only) {
+				@session_start();
+
 				$_SESSION["uid"] = $user_id;
 
 				$result = db_query($link, "SELECT login,access_level,pwd_hash FROM ttrss_users
@@ -1937,7 +1947,8 @@
 				"feed_debug_update" => __("Debug feed update"),
 				"catchup_all" => __("Mark all feeds as read"),
 				"cat_toggle_collapse" => __("Un/collapse current category"),
-				"toggle_combined_mode" => __("Toggle combined mode")),
+				"toggle_combined_mode" => __("Toggle combined mode"),
+				"toggle_cdm_expanded" => __("Toggle auto expand in combined mode")),
 			__("Go to") => array(
 				"goto_all" => __("All articles"),
 				"goto_fresh" => __("Fresh"),
@@ -2001,6 +2012,7 @@
 				"f x" => "feed_reverse",
 				"f *d" => "feed_debug_update",
 				"f *c" => "toggle_combined_mode",
+				"f c" => "toggle_cdm_expanded",
 				"*q" => "catchup_all",
 				"x" => "cat_toggle_collapse",
 //			"goto" => array(
