@@ -407,8 +407,8 @@ class RPC extends Handler_Protected {
 
 		if (!$tags_str_full) $tags_str_full = __("no tags");
 
-		print json_encode(array("tags_str" => array("id" => $id,
-				"content" => $tags_str, "content_full" => $tags_str_full)));
+		print json_encode(array("id" => (int)$id,
+				"content" => $tags_str, "content_full" => $tags_str_full));
 	}
 
 	function regenOPMLKey() {
@@ -593,8 +593,9 @@ class RPC extends Handler_Protected {
 	function catchupFeed() {
 		$feed_id = db_escape_string($this->link, $_REQUEST['feed_id']);
 		$is_cat = db_escape_string($this->link, $_REQUEST['is_cat']) == "true";
+		$mode = db_escape_string($this->link, $_REQUEST['mode']);
 
-		catchup_feed($this->link, $feed_id, $is_cat, false);
+		catchup_feed($this->link, $feed_id, $is_cat, false, false, $mode);
 
 		print json_encode(array("message" => "UPDATE_COUNTERS"));
 	}

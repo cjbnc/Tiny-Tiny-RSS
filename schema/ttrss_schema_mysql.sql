@@ -62,6 +62,7 @@ create table ttrss_feed_categories(id integer not null primary key auto_incremen
 	collapsed bool not null default false,
 	order_id integer not null default 0,
 	parent_cat integer,
+	view_settings varchar(250) not null default '',
 	index(parent_cat),
 	foreign key (parent_cat) references ttrss_feed_categories(id) ON DELETE SET NULL,
 	index(owner_uid),
@@ -127,6 +128,7 @@ create table ttrss_feeds (id integer not null auto_increment primary key,
 	mark_unread_on_update boolean not null default false,
 	update_on_checksum_change boolean not null default false,
 	strip_images boolean not null default false,
+	view_settings varchar(250) not null default '',
 	pubsub_state integer not null default 0,
 	favicon_last_checked datetime default null,
 	index(owner_uid),
@@ -246,11 +248,16 @@ insert into ttrss_filter_actions (id,name,description) values (6, 'score',
 insert into ttrss_filter_actions (id,name,description) values (7, 'label',
 	'Assign label');
 
+insert into ttrss_filter_actions (id,name,description) values (8, 'stop',
+	'Stop / Do nothing');
+
 create table ttrss_filters2(id integer primary key auto_increment,
 	owner_uid integer not null,
 	match_any_rule boolean not null default false,
 	enabled boolean not null default true,
 	inverse bool not null default false,
+	title varchar(250) not null default '',
+	order_id integer not null default 0,
 	index(owner_uid),
 	foreign key (owner_uid) references ttrss_users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=UTF8;
 
@@ -291,7 +298,7 @@ create table ttrss_tags (id integer primary key auto_increment,
 
 create table ttrss_version (schema_version int not null) ENGINE=InnoDB DEFAULT CHARSET=UTF8;
 
-insert into ttrss_version values (111);
+insert into ttrss_version values (114);
 
 create table ttrss_enclosures (id integer primary key auto_increment,
 	content_url text not null,

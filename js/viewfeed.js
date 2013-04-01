@@ -52,9 +52,9 @@ function headlines_callback2(transport, offset, background, infscroll_req) {
 
 			setActiveFeedId(feed_id, is_cat);
 
-			dijit.getEnclosingWidget(
+			/* dijit.getEnclosingWidget(
 				document.forms["main_toolbar_form"].update).attr('disabled',
-					is_cat || feed_id <= 0);
+					is_cat || feed_id <= 0); */
 
 			try {
 				if (infscroll_req == false) {
@@ -941,23 +941,6 @@ function selectArticles(mode) {
 	}
 }
 
-function catchupPage() {
-
-	var fn = getFeedName(getActiveFeedId(), activeFeedIsCat());
-
-	var str = __("Mark all visible articles in %s as read?");
-
-	str = str.replace("%s", fn);
-
-	if (getInitParam("confirm_feed_catchup") == 1 && !confirm(str)) {
-		return;
-	}
-
-	selectArticles('all');
-	selectionToggleUnread(false, 'viewCurrentFeed()', true);
-	selectArticles('none');
-}
-
 function deleteSelection() {
 
 	try {
@@ -1084,7 +1067,7 @@ function catchupSelection() {
 }
 
 function editArticleTags(id) {
-		var query = "backend.php?op=dlg&method=editArticleTags&param=" + param_escape(id);
+		var query = "backend.php?op=article&method=editArticleTags&param=" + param_escape(id);
 
 		if (dijit.byId("editTagsDlg"))
 			dijit.byId("editTagsDlg").destroyRecursive();
@@ -1102,22 +1085,25 @@ function editArticleTags(id) {
 					new Ajax.Request("backend.php",	{
 					parameters: query,
 					onComplete: function(transport) {
-						notify('');
-						dialog.hide();
+						try {
+							notify('');
+							dialog.hide();
 
-						var data = JSON.parse(transport.responseText);
+							var data = JSON.parse(transport.responseText);
 
-						if (data) {
-							var tags_str = article.tags;
-							var id = tags_str.id;
+							if (data) {
+								var id = data.id;
 
-							var tags = $("ATSTR-" + id);
-							var tooltip = dijit.byId("ATSTRTIP-" + id);
+								console.log(id);
 
-							if (tags) tags.innerHTML = tags_str.content;
-							if (tooltip) tooltip.attr('label', tags_str.content_full);
+								var tags = $("ATSTR-" + id);
+								var tooltip = dijit.byId("ATSTRTIP-" + id);
 
-							cache_delete("article:" + id);
+								if (tags) tags.innerHTML = data.content;
+								if (tooltip) tooltip.attr('label', data.content_full);
+							}
+						} catch (e) {
+							exception_error("editArticleTags/inner", e);
 						}
 
 					}});
@@ -1170,11 +1156,11 @@ function postMouseIn(e, id) {
 
 	if (_post_preview_timeout) window.clearTimeout(_post_preview_timeout);
 
-	if (!isCdmMode() || !getInitParam("cdm_expanded")) {
+	/* if (!isCdmMode() || !getInitParam("cdm_expanded")) {
 		_post_preview_timeout = window.setTimeout(function() {
 			displaySmallArticlePreview(e, id);
 		}, 1000);
-	}
+	} */
 }
 
 function displaySmallArticlePreview(e, id) {
@@ -1552,6 +1538,8 @@ function show_labels_in_headlines(transport) {
 function dismissArticle(id) {
 	try {
 		var elem = $("RROW-" + id);
+
+		if (!elem) return;
 
 		toggleUnread(id, 0, true);
 

@@ -2,7 +2,7 @@
 class Pref_Prefs extends Handler_Protected {
 
 	function csrf_ignore($method) {
-		$csrf_ignored = array("index", "updateself");
+		$csrf_ignored = array("index", "updateself", "customizecss", "editprefprofiles");
 
 		return array_search($method, $csrf_ignored) !== false;
 	}
@@ -870,5 +870,150 @@ class Pref_Prefs extends Handler_Protected {
 		global $pluginhost;
 		$pluginhost->clear_data($pluginhost->get_plugin($name));
 	}
+
+	function customizeCSS() {
+		$value = get_pref($this->link, "USER_STYLESHEET");
+
+		$value = str_replace("<br/>", "\n", $value);
+
+		print_notice(T_sprintf("You can override colors, fonts and layout of your currently selected theme with custom CSS declarations here. <a target=\"_blank\" class=\"visibleLink\" href=\"%s\">This file</a> can be used as a baseline.", "tt-rss.css"));
+
+		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"op\" value=\"rpc\">";
+		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"method\" value=\"setpref\">";
+		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"key\" value=\"USER_STYLESHEET\">";
+
+		print "<table width='100%'><tr><td>";
+		print "<textarea dojoType=\"dijit.form.SimpleTextarea\"
+			style='font-size : 12px; width : 100%; height: 200px;'
+			placeHolder='body#ttrssMain { font-size : 14px; };'
+			name='value'>$value</textarea>";
+		print "</td></tr></table>";
+
+		print "<div class='dlgButtons'>";
+		print "<button dojoType=\"dijit.form.Button\"
+			onclick=\"dijit.byId('cssEditDlg').execute()\">".__('Save')."</button> ";
+		print "<button dojoType=\"dijit.form.Button\"
+			onclick=\"dijit.byId('cssEditDlg').hide()\">".__('Cancel')."</button>";
+		print "</div>";
+
+	}
+
+	function editPrefProfiles() {
+		print "<div dojoType=\"dijit.Toolbar\">";
+
+		print "<div dojoType=\"dijit.form.DropDownButton\">".
+				"<span>" . __('Select')."</span>";
+		print "<div dojoType=\"dijit.Menu\" style=\"display: none;\">";
+		print "<div onclick=\"selectTableRows('prefFeedProfileList', 'all')\"
+			dojoType=\"dijit.MenuItem\">".__('All')."</div>";
+		print "<div onclick=\"selectTableRows('prefFeedProfileList', 'none')\"
+			dojoType=\"dijit.MenuItem\">".__('None')."</div>";
+		print "</div></div>";
+
+		print "<div style=\"float : right\">";
+
+		print "<input name=\"newprofile\" dojoType=\"dijit.form.ValidationTextBox\"
+				required=\"1\">
+			<button dojoType=\"dijit.form.Button\"
+			onclick=\"dijit.byId('profileEditDlg').addProfile()\">".
+				__('Create profile')."</button></div>";
+
+		print "</div>";
+
+		$result = db_query($this->link, "SELECT title,id FROM ttrss_settings_profiles
+			WHERE owner_uid = ".$_SESSION["uid"]." ORDER BY title");
+
+		print "<div class=\"prefProfileHolder\">";
+
+		print "<form id=\"profile_edit_form\" onsubmit=\"return false\">";
+
+		print "<table width=\"100%\" class=\"prefFeedProfileList\"
+			cellspacing=\"0\" id=\"prefFeedProfileList\">";
+
+		print "<tr class=\"placeholder\" id=\"FCATR-0\">"; #odd
+
+		print "<td width='5%' align='center'><input
+			id='FCATC-0'
+			onclick='toggleSelectRow2(this);'
+			dojoType=\"dijit.form.CheckBox\"
+			type=\"checkbox\"></td>";
+
+		if (!$_SESSION["profile"]) {
+			$is_active = __("(active)");
+		} else {
+			$is_active = "";
+		}
+
+		print "<td><span>" .
+			__("Default profile") . " $is_active</span></td>";
+
+		print "</tr>";
+
+		$lnum = 1;
+
+		while ($line = db_fetch_assoc($result)) {
+
+			$class = ($lnum % 2) ? "even" : "odd";
+
+			$profile_id = $line["id"];
+			$this_row_id = "id=\"FCATR-$profile_id\"";
+
+			print "<tr class=\"placeholder\" $this_row_id>";
+
+			$edit_title = htmlspecialchars($line["title"]);
+
+			print "<td width='5%' align='center'><input
+				onclick='toggleSelectRow2(this);'
+				id='FCATC-$profile_id'
+				dojoType=\"dijit.form.CheckBox\"
+				type=\"checkbox\"></td>";
+
+			if ($_SESSION["profile"] == $line["id"]) {
+				$is_active = __("(active)");
+			} else {
+				$is_active = "";
+			}
+
+			print "<td><span dojoType=\"dijit.InlineEditBox\"
+				width=\"300px\" autoSave=\"false\"
+				profile-id=\"$profile_id\">" . $edit_title .
+				"<script type=\"dojo/method\" event=\"onChange\" args=\"item\">
+					var elem = this;
+					dojo.xhrPost({
+						url: 'backend.php',
+						content: {op: 'rpc', method: 'saveprofile',
+							value: this.value,
+							id: this.srcNodeRef.getAttribute('profile-id')},
+							load: function(response) {
+								elem.attr('value', response);
+						}
+					});
+				</script>
+			</span> $is_active</td>";
+
+			print "</tr>";
+
+			++$lnum;
+		}
+
+		print "</table>";
+		print "</form>";
+		print "</div>";
+
+		print "<div class='dlgButtons'>
+			<div style='float : left'>
+			<button dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('profileEditDlg').removeSelected()\">".
+			__('Remove selected profiles')."</button>
+			<button dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('profileEditDlg').activateProfile()\">".
+			__('Activate profile')."</button>
+			</div>";
+
+		print "<button dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('profileEditDlg').hide()\">".
+			__('Close this window')."</button>";
+		print "</div>";
+
+	}
+
+
 }
 ?>

@@ -104,6 +104,9 @@
 	<?php
 		require 'lib/jshrink/Minifier.php';
 
+		print get_minified_js(array("tt-rss",
+			"functions", "feedlist", "viewfeed", "FeedTree"));
+
 		global $pluginhost;
 
 		foreach ($pluginhost->get_plugins() as $n => $p) {
@@ -111,9 +114,6 @@
 				echo JShrink\Minifier::minify($p->get_js());
 			}
 		}
-
-		print get_minified_js(array("tt-rss",
-			"functions", "feedlist", "viewfeed", "FeedTree"));
 
 		init_js_translations();
 	?>
@@ -189,16 +189,24 @@
 			<option value="date_reverse"><?php echo __('Oldest first') ?></option>
 		</select>
 
-		<!-- deprecated -->
-		<button dojoType="dijit.form.Button" name="update" style="display : none"
-			onclick="viewCurrentFeed()">
-			<?php echo __('Update') ?></button>
-
-		<button dojoType="dijit.form.Button"
-			onclick="catchupCurrentFeed()">
-			<?php echo __('Mark as read') ?></button>
+		<select title="<?php echo __('Mark feed as read') ?>"
+			onchange="catchupCurrentFeed(event)"
+			dojoType="dijit.form.Select" name="catchup_feed">
+			<option selected="selected" value="default"><?php echo __('Mark as read') ?></option>
+			<option value="all"><?php echo __('All articles') ?></option>
+			<option value="1day"><?php echo __('Older than one day') ?></option>
+			<option value="1week"><?php echo __('Older than one week') ?></option>
+			<option value="2weeks"><?php echo __('Older than two weeks') ?></option>
+		</select>
 
 		</form>
+
+		<?php
+			global $pluginhost;
+			foreach ($pluginhost->get_hooks($pluginhost::HOOK_TOOLBAR_BUTTON) as $p) {
+				 echo $p->hook_toolbar_button();
+			}
+		?>
 
 		<div class="actionChooser">
 
@@ -223,21 +231,28 @@
 					<div dojoType="dijit.MenuItem" disabled="1"><?php echo __('Feed actions:') ?></div>
 					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcAddFeed')"><?php echo __('Subscribe to feed...') ?></div>
 					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcEditFeed')"><?php echo __('Edit this feed...') ?></div>
-					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcRescoreFeed')"><?php echo __('Rescore feed') ?></div>
+					<!-- <div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcRescoreFeed')"><?php echo __('Rescore feed') ?></div> -->
 					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcRemoveFeed')"><?php echo __('Unsubscribe') ?></div>
 					<div dojoType="dijit.MenuItem" disabled="1"><?php echo __('All feeds:') ?></div>
 					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcCatchupAll')"><?php echo __('Mark as read') ?></div>
 					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcShowOnlyUnread')"><?php echo __('(Un)hide read feeds') ?></div>
 					<div dojoType="dijit.MenuItem" disabled="1"><?php echo __('Other actions:') ?></div>
-					<?php if ($pluginhost->get_plugin("digest")) { ?>
+					<!-- <?php if ($pluginhost->get_plugin("digest")) { ?>
 					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcDigest')"><?php echo __('Switch to digest...') ?></div>
-					<?php } ?>
-						<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcTagCloud')"><?php echo __('Show tag cloud...') ?></div>
+					<?php } ?> -->
+						<!-- <div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcTagCloud')"><?php echo __('Show tag cloud...') ?></div> -->
 						<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcToggleWidescreen')"><?php echo __('Toggle widescreen mode') ?></div>
 					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcTagSelect')"><?php echo __('Select by tags...') ?></div>
-					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcAddLabel')"><?php echo __('Create label...') ?></div>
-					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcAddFilter')"><?php echo __('Create filter...') ?></div>
+					<!-- <div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcAddLabel')"><?php echo __('Create label...') ?></div>
+					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcAddFilter')"><?php echo __('Create filter...') ?></div> -->
 					<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcHKhelp')"><?php echo __('Keyboard shortcuts help') ?></div>
+
+					<?php
+						foreach ($pluginhost->get_hooks($pluginhost::HOOK_ACTION_ITEM) as $p) {
+						 echo $p->hook_action_item();
+						}
+					?>
+
 					<?php if (!$_SESSION["hide_logout"]) { ?>
 						<div dojoType="dijit.MenuItem" onclick="quickMenuGo('qmcLogout')"><?php echo __('Logout') ?></div>
 					<?php } ?>

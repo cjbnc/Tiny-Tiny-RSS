@@ -120,7 +120,7 @@
 
 	$longopts = array("log:",
 			"tasks:",
-			"interval",
+			"interval:",
 			"quiet",
 			"help");
 
@@ -142,14 +142,14 @@
 
 	if (isset($options["tasks"])) {
 		_debug("Set to spawn " . $options["tasks"] . " children.");
-		$max_jobs = $option["tasks"];
+		$max_jobs = $options["tasks"];
 	} else {
 		$max_jobs = MAX_JOBS;
 	}
 
 	if (isset($options["interval"])) {
 		_debug("Spawn interval: " . $options["interval"] . " seconds.");
-		$spawn_interval = $option["interval"];
+		$spawn_interval = $options["interval"];
 	} else {
 		$spawn_interval = SPAWN_INTERVAL;
 	}
@@ -176,7 +176,9 @@
 	// It is unnecessary to start the fork loop if database is not ok.
 	$link = db_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
-	if (!init_connection($link)) return;
+	if (!init_connection($link)) die("Can't initialize db connection.\n");
+
+	$schema_version = get_schema_version($link);
 
 	db_close($link);
 
@@ -192,6 +194,19 @@
 		}
 
 		if ($last_checkpoint + $spawn_interval < time()) {
+
+			/* Check if schema version changed */
+
+			$link = db_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+			if (!init_connection($link)) die("Can't initialize db connection.\n");
+			$test_schema_version = get_schema_version($link);
+			db_close($link);
+
+			if ($test_schema_version != $schema_version) {
+				echo "Expected schema version: $schema_version, got: $test_schema_version\n";
+				echo "Schema version changed while we were running, bailing out\n";
+				exit(100);
+			}
 
 			check_ctimes();
 			reap_children();
@@ -248,8 +263,8 @@
 
 					$nf = 0;
 
-					_debug("Waiting before update..");
-					sleep(rand(5,15));
+					_debug("Waiting before update [$j]..");
+					sleep($j*5);
 					$nf = update_daemon_common($link);
 
 					if (rand(0,100) > 50) {

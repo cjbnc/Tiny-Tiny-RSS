@@ -57,6 +57,7 @@
 				"lib/scriptaculous/scriptaculous.js?load=effects,dragdrop,controls",
 				"lib/dojo/dojo.js",
 				"lib/dijit/dijit.js",
+				"lib/CheckBoxTree.js",
 				"lib/dojo/tt-rss-layer.js",
 				"errors.php?mode=js") as $jsfile) {
 
@@ -76,7 +77,7 @@
 			}
 		}
 
-		print get_minified_js(array("functions", "deprecated", "prefs"));
+		print get_minified_js(array("functions", "deprecated", "prefs", "PrefFeedTree", "PrefFilterTree", "PrefLabelTree"));
 
 		init_js_translations();
 	?>
@@ -106,8 +107,6 @@
 		<noscript><br/><?php print_error('Javascript is disabled. Please enable it.') ?></noscript>
 	</div>
 </div>
-
-<img id="piggie" src="images/piggie.png" style="display : none" alt="piggie"/>
 
 <div id="header" dojoType="dijit.layout.ContentPane" region="top">
 	<!-- <a href='#' onclick="showHelp()"><?php echo __("Keyboard shortcuts") ?></a> | -->

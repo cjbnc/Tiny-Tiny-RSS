@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 111);
+	define('SCHEMA_VERSION', 114);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -62,7 +62,9 @@
 					"pl_PL" => "Polski",
 					"ru_RU" => "Русский",
 					"pt_BR" => "Portuguese/Brazil",
-					"zh_CN" => "Simplified Chinese");
+					"zh_CN" => "Simplified Chinese",
+					"sv_SE" => "Svenska",
+					"fi_FI" => "Suomi");
 
 		return $tr;
 	}
@@ -620,6 +622,7 @@
 					$_SESSION["uid"]);
 
 				$_SESSION["ip_address"] = $_SERVER["REMOTE_ADDR"];
+				$_SESSION["user_agent"] = sha1($_SERVER['HTTP_USER_AGENT']);
 				$_SESSION["pwd_hash"] = db_fetch_result($result, 0, "pwd_hash");
 
 				$_SESSION["last_version_check"] = time();
@@ -697,57 +700,6 @@
 
 	function validate_csrf($csrf_token) {
 		return $csrf_token == $_SESSION['csrf_token'];
-	}
-
-	function validate_session($link) {
-		if (SINGLE_USER_MODE) return true;
-
-		$check_ip = $_SESSION['ip_address'];
-
-		switch (SESSION_CHECK_ADDRESS) {
-		case 0:
-			$check_ip = '';
-			break;
-		case 1:
-			$check_ip = substr($check_ip, 0, strrpos($check_ip, '.')+1);
-			break;
-		case 2:
-			$check_ip = substr($check_ip, 0, strrpos($check_ip, '.'));
-			$check_ip = substr($check_ip, 0, strrpos($check_ip, '.')+1);
-			break;
-		};
-
-		if ($check_ip && strpos($_SERVER['REMOTE_ADDR'], $check_ip) !== 0) {
-			$_SESSION["login_error_msg"] =
-				__("Session failed to validate (incorrect IP)");
-			return false;
-		}
-
-		if ($_SESSION["ref_schema_version"] != get_schema_version($link, true))
-			return false;
-
-		if ($_SESSION["uid"]) {
-
-			$result = db_query($link,
-				"SELECT pwd_hash FROM ttrss_users WHERE id = '".$_SESSION["uid"]."'");
-
-			$pwd_hash = db_fetch_result($result, 0, "pwd_hash");
-
-			if ($pwd_hash != $_SESSION["pwd_hash"]) {
-				return false;
-			}
-		}
-
-/*		if ($_SESSION["cookie_lifetime"] && $_SESSION["uid"]) {
-
-			//print_r($_SESSION);
-
-			if (time() > $_SESSION["cookie_lifetime"]) {
-				return false;
-			}
-		} */
-
-		return true;
 	}
 
 	function load_user_plugins($link, $owner_uid) {
@@ -1003,11 +955,41 @@
 		}
 	}
 
-	function catchup_feed($link, $feed, $cat_view, $owner_uid = false, $max_id = false) {
+	function catchup_feed($link, $feed, $cat_view, $owner_uid = false, $max_id = false, $mode = 'all') {
 
 			if (!$owner_uid) $owner_uid = $_SESSION['uid'];
 
 			//if (preg_match("/^-?[0-9][0-9]*$/", $feed) != false) {
+
+			// Todo: all this interval stuff needs some generic generator function
+
+			$date_qpart = "false";
+
+			switch ($mode) {
+			case "1day":
+				if (DB_TYPE == "pgsql") {
+					$date_qpart = "date_entered < NOW() - INTERVAL '1 day' ";
+				} else {
+					$date_qpart = "date_entered < DATE_SUB(NOW(), INTERVAL 1 DAY) ";
+				}
+				break;
+			case "1week":
+				if (DB_TYPE == "pgsql") {
+					$date_qpart = "date_entered < NOW() - INTERVAL '1 week' ";
+				} else {
+					$date_qpart = "date_entered < DATE_SUB(NOW(), INTERVAL 1 WEEK) ";
+				}
+				break;
+			case "2weeks":
+				if (DB_TYPE == "pgsql") {
+					$date_qpart = "date_entered < NOW() - INTERVAL '2 week' ";
+				} else {
+					$date_qpart = "date_entered < DATE_SUB(NOW(), INTERVAL 2 WEEK) ";
+				}
+				break;
+			default:
+				$date_qpart = "true";
+			}
 
 			if (is_numeric($feed)) {
 				if ($cat_view) {
@@ -1026,43 +1008,44 @@
 						}
 
 						db_query($link, "UPDATE ttrss_user_entries
-							SET unread = false,last_read = NOW()
-							WHERE feed_id IN (SELECT id FROM ttrss_feeds WHERE $cat_qpart)
-							AND unread = true
-							AND owner_uid = $owner_uid");
+							SET unread = false, last_read = NOW() WHERE ref_id IN
+								(SELECT id FROM
+									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+										AND owner_uid = $owner_uid AND unread = true AND feed_id IN
+											(SELECT id FROM ttrss_feeds WHERE $cat_qpart) AND $date_qpart) as tmp)");
 
 					} else if ($feed == -2) {
 
 						db_query($link, "UPDATE ttrss_user_entries
 							SET unread = false,last_read = NOW() WHERE (SELECT COUNT(*)
 								FROM ttrss_user_labels2 WHERE article_id = ref_id) > 0
-								AND unread = true AND owner_uid = $owner_uid");
+								AND unread = true AND $date_qpart AND owner_uid = $owner_uid");
 					}
 
 				} else if ($feed > 0) {
 
 					db_query($link, "UPDATE ttrss_user_entries
-							SET unread = false,last_read = NOW()
-							WHERE feed_id = '$feed'
-							AND unread = true
-							AND owner_uid = $owner_uid");
+						SET unread = false, last_read = NOW() WHERE ref_id IN
+							(SELECT id FROM
+								(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									AND owner_uid = $owner_uid AND unread = true AND feed_id = $feed AND $date_qpart) as tmp)");
 
 				} else if ($feed < 0 && $feed > LABEL_BASE_INDEX) { // special, like starred
 
 					if ($feed == -1) {
 						db_query($link, "UPDATE ttrss_user_entries
-							SET unread = false,last_read = NOW()
-							WHERE marked = true
-							AND unread = true
-							AND owner_uid = $owner_uid");
+							SET unread = false, last_read = NOW() WHERE ref_id IN
+								(SELECT id FROM
+									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+										AND owner_uid = $owner_uid AND unread = true AND marked = true AND $date_qpart) as tmp)");
 					}
 
 					if ($feed == -2) {
 						db_query($link, "UPDATE ttrss_user_entries
-							SET unread = false,last_read = NOW()
-							WHERE published = true
-							AND unread = true
-							AND owner_uid = $owner_uid");
+							SET unread = false, last_read = NOW() WHERE ref_id IN
+								(SELECT id FROM
+									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+										AND owner_uid = $owner_uid AND unread = true AND published = true AND $date_qpart) as tmp)");
 					}
 
 					if ($feed == -3) {
@@ -1076,56 +1059,44 @@
 								INTERVAL $intl HOUR) ";
 						}
 
-						$result = db_query($link, "SELECT id FROM ttrss_entries,
-							ttrss_user_entries WHERE $match_part AND
-							unread = true AND
-						  	ttrss_user_entries.ref_id = ttrss_entries.id AND
-							owner_uid = $owner_uid");
-
-						$affected_ids = array();
-
-						while ($line = db_fetch_assoc($result)) {
-							array_push($affected_ids, $line["id"]);
-						}
-
-						catchupArticlesById($link, $affected_ids, 0);
+						db_query($link, "UPDATE ttrss_user_entries
+							SET unread = false, last_read = NOW() WHERE ref_id IN
+								(SELECT id FROM
+									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+										AND owner_uid = $owner_uid AND unread = true AND feed_id = $feed AND $date_qpart AND $match_part) as tmp)");
 					}
 
 					if ($feed == -4) {
 						db_query($link, "UPDATE ttrss_user_entries
-							SET unread = false,last_read = NOW()
-							WHERE unread = true AND
-							owner_uid = $owner_uid");
+							SET unread = false, last_read = NOW() WHERE ref_id IN
+								(SELECT id FROM
+									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+										AND owner_uid = $owner_uid AND unread = true AND $date_qpart) as tmp)");
 					}
 
 				} else if ($feed < LABEL_BASE_INDEX) { // label
 
 					$label_id = feed_to_label_id($feed);
 
-					db_query($link, "UPDATE ttrss_user_entries, ttrss_user_labels2
-						SET unread = false, last_read = NOW()
-							WHERE label_id = '$label_id' AND unread = true
-							AND owner_uid = '$owner_uid' AND ref_id = article_id");
+					db_query($link, "UPDATE ttrss_user_entries
+						SET unread = false, last_read = NOW() WHERE ref_id IN
+							(SELECT id FROM
+								(SELECT ttrss_entries.id FROM ttrss_entries, ttrss_user_entries, ttrss_user_labels2 WHERE ref_id = id
+									AND label_id = '$label_id' AND ref_id = article_id
+									AND owner_uid = $owner_uid AND unread = true AND $date_qpart) as tmp)");
 
 				}
 
 				ccache_update($link, $feed, $owner_uid, $cat_view);
 
 			} else { // tag
-				db_query($link, "BEGIN");
+				db_query($link, "UPDATE ttrss_user_entries
+					SET unread = false, last_read = NOW() WHERE ref_id IN
+						(SELECT id FROM
+							(SELECT ttrss_entries.id FROM ttrss_entries, ttrss_user_entries, ttrss_tags WHERE ref_id = ttrss_entries.id
+								AND post_int_id = int_id AND tag_name = '$feed'
+								AND ttrss_user_entries.owner_uid = $owner_uid AND unread = true AND $date_qpart) as tmp)");
 
-				$tag_name = db_escape_string($link, $feed);
-
-				$result = db_query($link, "SELECT post_int_id FROM ttrss_tags
-					WHERE tag_name = '$tag_name' AND owner_uid = $owner_uid");
-
-				while ($line = db_fetch_assoc($result)) {
-					db_query($link, "UPDATE ttrss_user_entries SET
-						unread = false, last_read = NOW()
-						WHERE unread = true
-						AND int_id = " . $line["post_int_id"]);
-				}
-				db_query($link, "COMMIT");
 			}
 	}
 
@@ -3224,7 +3195,7 @@
 		$cat_id = (int)getFeedCategory($link, $feed_id);
 
 		$result = db_query($link, "SELECT * FROM ttrss_filters2 WHERE
-			owner_uid = $owner_uid AND enabled = true");
+			owner_uid = $owner_uid AND enabled = true ORDER BY order_id, title");
 
 		$check_cats = join(",", array_merge(
 			getParentCategories($link, $cat_id, $owner_uid),
@@ -3963,9 +3934,121 @@
 	}
 
 	if (!function_exists('gzdecode')) {
-		function gzdecode($string) { // no support for 2nd argument
+		/* function gzdecode($string) { // no support for 2nd argument
 			return file_get_contents('compress.zlib://data:who/cares;base64,'.
 				base64_encode($string));
+		} */
+
+
+		function gzdecode($data, &$filename = '', &$error = '', $maxlength = null) {
+		    $len = strlen($data);
+		    if ($len < 18 || strcmp(substr($data,0,2),"\x1f\x8b")) {
+		        $error = "Not in GZIP format.";
+		        return null;  // Not GZIP format (See RFC 1952)
+		    }
+		    $method = ord(substr($data,2,1));  // Compression method
+		    $flags  = ord(substr($data,3,1));  // Flags
+		    if ($flags & 31 != $flags) {
+		        $error = "Reserved bits not allowed.";
+		        return null;
+		    }
+		    // NOTE: $mtime may be negative (PHP integer limitations)
+		    $mtime = unpack("V", substr($data,4,4));
+		    $mtime = $mtime[1];
+		    $xfl   = substr($data,8,1);
+		    $os    = substr($data,8,1);
+		    $headerlen = 10;
+		    $extralen  = 0;
+		    $extra     = "";
+		    if ($flags & 4) {
+		        // 2-byte length prefixed EXTRA data in header
+		        if ($len - $headerlen - 2 < 8) {
+		            return false;  // invalid
+		        }
+		        $extralen = unpack("v",substr($data,8,2));
+		        $extralen = $extralen[1];
+		        if ($len - $headerlen - 2 - $extralen < 8) {
+		            return false;  // invalid
+		        }
+		        $extra = substr($data,10,$extralen);
+		        $headerlen += 2 + $extralen;
+		    }
+		    $filenamelen = 0;
+		    $filename = "";
+		    if ($flags & 8) {
+		        // C-style string
+		        if ($len - $headerlen - 1 < 8) {
+		            return false; // invalid
+		        }
+		        $filenamelen = strpos(substr($data,$headerlen),chr(0));
+		        if ($filenamelen === false || $len - $headerlen - $filenamelen - 1 < 8) {
+		            return false; // invalid
+		        }
+		        $filename = substr($data,$headerlen,$filenamelen);
+		        $headerlen += $filenamelen + 1;
+		    }
+		    $commentlen = 0;
+		    $comment = "";
+		    if ($flags & 16) {
+		        // C-style string COMMENT data in header
+		        if ($len - $headerlen - 1 < 8) {
+		            return false;    // invalid
+		        }
+		        $commentlen = strpos(substr($data,$headerlen),chr(0));
+		        if ($commentlen === false || $len - $headerlen - $commentlen - 1 < 8) {
+		            return false;    // Invalid header format
+		        }
+		        $comment = substr($data,$headerlen,$commentlen);
+		        $headerlen += $commentlen + 1;
+		    }
+		    $headercrc = "";
+		    if ($flags & 2) {
+		        // 2-bytes (lowest order) of CRC32 on header present
+		        if ($len - $headerlen - 2 < 8) {
+		            return false;    // invalid
+		        }
+		        $calccrc = crc32(substr($data,0,$headerlen)) & 0xffff;
+		        $headercrc = unpack("v", substr($data,$headerlen,2));
+		        $headercrc = $headercrc[1];
+		        if ($headercrc != $calccrc) {
+		            $error = "Header checksum failed.";
+		            return false;    // Bad header CRC
+		        }
+		        $headerlen += 2;
+		    }
+		    // GZIP FOOTER
+		    $datacrc = unpack("V",substr($data,-8,4));
+		    $datacrc = sprintf('%u',$datacrc[1] & 0xFFFFFFFF);
+		    $isize = unpack("V",substr($data,-4));
+		    $isize = $isize[1];
+		    // decompression:
+		    $bodylen = $len-$headerlen-8;
+		    if ($bodylen < 1) {
+		        // IMPLEMENTATION BUG!
+		        return null;
+		    }
+		    $body = substr($data,$headerlen,$bodylen);
+		    $data = "";
+		    if ($bodylen > 0) {
+		        switch ($method) {
+		        case 8:
+		            // Currently the only supported compression method:
+		            $data = gzinflate($body,$maxlength);
+		            break;
+		        default:
+		            $error = "Unknown compression method.";
+		            return false;
+		        }
+		    }  // zero-byte body content is allowed
+		    // Verifiy CRC32
+		    $crc   = sprintf("%u",crc32($data));
+		    $crcOK = $crc == $datacrc;
+		    $lenOK = $isize == strlen($data);
+		    if (!$lenOK || !$crcOK) {
+		        $error = ( $lenOK ? '' : 'Length check FAILED. ') . ( $crcOK ? '' : 'Checksum FAILED.');
+		        return false;
+		    }
+		    return $data;
 		}
 	}
 

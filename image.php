@@ -30,7 +30,9 @@
 			header("Content-type: image/png");
 			$stamp = gmdate("D, d M Y H:i:s", filemtime($filename)). " GMT";
 			header("Last-Modified: $stamp", true);
-			echo file_get_contents($filename);
+
+			readfile($filename);
+
 		} else {
 			header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
 			echo "File not found.";
