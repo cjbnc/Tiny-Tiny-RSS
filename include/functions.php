@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 114);
+	define('SCHEMA_VERSION', 115);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -30,13 +30,36 @@
 
 	require_once 'config.php';
 
+	/**
+	 * Define a constant if not already defined
+	 *
+	 * @param string $name The constant name.
+	 * @param mixed $value The constant value.
+	 * @access public
+	 * @return boolean True if defined successfully or not.
+	 */
+	function define_default($name, $value) {
+		defined($name) or define($name, $value);
+	}
+
+	///// Some defaults that you can override in config.php //////
+
+	define_default('FEED_FETCH_TIMEOUT', 45);
+	// How may seconds to wait for response when requesting feed from a site
+	define_default('FEED_FETCH_NO_CACHE_TIMEOUT', 15);
+	// How may seconds to wait for response when requesting feed from a
+	// site when that feed wasn't cached before
+	define_default('FILE_FETCH_TIMEOUT', 45);
+	// Default timeout when fetching files from remote sites
+	define_default('FILE_FETCH_CONNECT_TIMEOUT', 15);
+	// How many seconds to wait for initial response from website when
+	// fetching files from remote sites
+
 	if (DB_TYPE == "pgsql") {
 		define('SUBSTRING_FOR_DATE', 'SUBSTRING_FOR_DATE');
 	} else {
 		define('SUBSTRING_FOR_DATE', 'SUBSTRING');
 	}
-
-	define('THEME_VERSION_REQUIRED', 1.1);
 
 	/**
 	 * Return available translations names.
@@ -308,8 +331,8 @@
 					array("If-Modified-Since: ".gmdate('D, d M Y H:i:s \G\M\T', $timestamp)));
 			}
 
-			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout ? $timeout : 15);
-			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout ? $timeout : 45);
+			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout ? $timeout : FILE_FETCH_CONNECT_TIMEOUT);
+			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout ? $timeout : FILE_FETCH_TIMEOUT);
 			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("safe_mode"));
 			curl_setopt($ch, CURLOPT_MAXREDIRS, 20);
 			curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
@@ -1933,6 +1956,11 @@
 				"collapse_sidebar" => __("Un/collapse sidebar"),
 				"help_dialog" => __("Show help dialog"))
 			);
+
+		global $pluginhost;
+		foreach ($pluginhost->get_hooks($pluginhost::HOOK_HOTKEY_INFO) as $plugin) {
+			$hotkeys = $plugin->hook_hotkey_info($hotkeys);
+		}
 
 		return $hotkeys;
 	}
