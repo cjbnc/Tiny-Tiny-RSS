@@ -1699,6 +1699,10 @@ msgstr ""
 msgid "Uses UTC timezone"
 msgstr ""
 
+#: classes/pref/prefs.php:37 inserted
+msgid "Disable popup previews in headline list"
+msgstr ""
+
 #: classes/pref/prefs.php:37
 msgid "Enable API access"
 msgstr ""

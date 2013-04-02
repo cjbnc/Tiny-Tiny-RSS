@@ -34,6 +34,7 @@ class Pref_Prefs extends Handler_Protected {
 			"DIGEST_CATCHUP" => array(__("Mark articles in e-mail digest as read"), ""),
 			"DIGEST_ENABLE" => array(__("Enable e-mail digest"), __("This option enables sending daily digest of new (and unread) headlines on your configured e-mail address")),
 			"DIGEST_PREFERRED_TIME" => array(__("Try to send digests around specified time"), __("Uses UTC timezone")),
+            "DISABLE_HEADLINE_POPUPS" => array(__("Disable popup previews in headline list"), ""),
 			"ENABLE_API_ACCESS" => array(__("Enable API access"), __("Allows external clients to access this account through the API")),
 			"ENABLE_FEED_CATS" => array(__("Enable feed categories"), ""),
 			"FEEDS_SORT_BY_UNREAD" => array(__("Sort feeds by unread articles count"), ""),
