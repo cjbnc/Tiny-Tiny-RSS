@@ -318,7 +318,7 @@
 		global $fetch_last_error;
 		global $fetch_last_error_code;
 
-		if (function_exists('curl_init') && !ini_get("open_basedir")) {
+		if (!defined('NO_CURL') && !function_exists('curl_init') && !ini_get("open_basedir")) {
 
 			if (ini_get("safe_mode")) {
 				$ch = curl_init(geturl($url));
@@ -396,9 +396,6 @@
 			}
 
 			$data = @file_get_contents($url);
-
-			@$gzdecoded = gzdecode($data);
-			if ($gzdecoded) $data = $gzdecoded;
 
 			if (!$data && function_exists('error_get_last')) {
 				$error = error_get_last();
@@ -1076,9 +1073,9 @@
 						$intl = get_pref($link, "FRESH_ARTICLE_MAX_AGE");
 
 						if (DB_TYPE == "pgsql") {
-							$match_part = "updated > NOW() - INTERVAL '$intl hour' ";
+							$match_part = "date_entered > NOW() - INTERVAL '$intl hour' ";
 						} else {
-							$match_part = "updated > DATE_SUB(NOW(),
+							$match_part = "date_entered > DATE_SUB(NOW(),
 								INTERVAL $intl HOUR) ";
 						}
 
@@ -1086,7 +1083,7 @@
 							SET unread = false, last_read = NOW() WHERE ref_id IN
 								(SELECT id FROM
 									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
-										AND owner_uid = $owner_uid AND unread = true AND feed_id = $feed AND $date_qpart AND $match_part) as tmp)");
+										AND owner_uid = $owner_uid AND unread = true AND $date_qpart AND $match_part) as tmp)");
 					}
 
 					if ($feed == -4) {
@@ -2425,13 +2422,7 @@
 				$query_strategy_part = "true";
 			}
 
-			if (get_pref($link, "SORT_HEADLINES_BY_FEED_DATE", $owner_uid)) {
-				$date_sort_field = "updated";
-			} else {
-				$date_sort_field = "date_entered";
-			}
-
-			$order_by = "$date_sort_field DESC, updated DESC";
+			$order_by = "score DESC, date_entered DESC, updated DESC";
 
 			if ($view_mode == "unread_first") {
 				$order_by = "unread DESC, $order_by";
