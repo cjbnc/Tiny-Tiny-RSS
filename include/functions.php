@@ -318,7 +318,7 @@
 		global $fetch_last_error;
 		global $fetch_last_error_code;
 
-		if (!defined('NO_CURL') && !function_exists('curl_init') && !ini_get("open_basedir")) {
+		if (!defined('NO_CURL') && function_exists('curl_init') && !ini_get("open_basedir")) {
 
 			if (ini_get("safe_mode")) {
 				$ch = curl_init(geturl($url));
@@ -630,6 +630,7 @@
 				@session_start();
 
 				$_SESSION["uid"] = $user_id;
+				$_SESSION["version"] = VERSION;
 
 				$result = db_query($link, "SELECT login,access_level,pwd_hash FROM ttrss_users
 					WHERE id = '$user_id'");
@@ -744,7 +745,9 @@
 			cache_prefs($link);
 			load_user_plugins($link, $_SESSION["uid"]);
 		} else {
-			if (!$_SESSION["uid"] || !validate_session($link)) {
+			if (!validate_session($link)) $_SESSION["uid"] = false;
+
+			if (!$_SESSION["uid"]) {
 
 				if (AUTH_AUTO_LOGIN && authenticate_user($link, null, null)) {
 				    $_SESSION["ref_schema_version"] = get_schema_version($link, true);
@@ -752,7 +755,13 @@
 					 authenticate_user($link, null, null, true);
 				}
 
-				if (!$_SESSION["uid"]) render_login_form($link);
+				if (!$_SESSION["uid"]) {
+					@session_destroy();
+					setcookie(session_name(), '', time()-42000, '/');
+
+					render_login_form($link);
+					exit;
+				}
 
 			} else {
 				/* bump login timestamp */
@@ -2405,6 +2414,7 @@
 
 				$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
 			} else if ($feed == -4) { // all articles virtual feed
+				$allow_archived = true;
 				$query_strategy_part = "true";
 				$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
 			} else if ($feed <= LABEL_BASE_INDEX) { // labels
