@@ -317,6 +317,8 @@
 
 		global $fetch_last_error;
 		global $fetch_last_error_code;
+		
+		$url = str_replace(' ', '%20', $url);
 
 		if (!defined('NO_CURL') && function_exists('curl_init') && !ini_get("open_basedir")) {
 
@@ -1912,6 +1914,8 @@
 				"prev_article" => __("Open previous article"),
 				"next_article_noscroll" => __("Open next article (don't scroll long articles)"),
 				"prev_article_noscroll" => __("Open previous article (don't scroll long articles)"),
+				"next_article_noexpand" => __("Move to next article (don't expand or mark read)"),
+				"prev_article_noexpand" => __("Move to previous article (don't expand or mark read)"),
 				"search_dialog" => __("Show search dialog")),
 			__("Article") => array(
 				"toggle_mark" => __("Toggle starred"),
@@ -1928,6 +1932,7 @@
 				"select_article_cursor" => __("Select article under cursor"),
 				"email_article" => __("Email article"),
 				"close_article" => __("Close/collapse article"),
+				"toggle_expand" => __("Toggle article expansion (combined mode)"),
 				"toggle_widescreen" => __("Toggle widescreen mode"),
 				"toggle_embed_original" => __("Toggle embed original")),
 			__("Article selection") => array(
@@ -2132,39 +2137,62 @@
 
 			$commandpair = explode(":", mb_strtolower($k), 2);
 
-			if ($commandpair[0] == "note" && $commandpair[1]) {
+			switch ($commandpair[0]) {
+			case "title":
+				if ($commandpair[1]) {
+					array_push($query_keywords, "($not (LOWER(ttrss_entries.title) LIKE '%".
+						db_escape_string($link, mb_strtolower($commandpair[1]))."%'))");
+				}
+				break;
+			case "author":
+				if ($commandpair[1]) {
+					array_push($query_keywords, "($not (LOWER(author) LIKE '%".
+						db_escape_string($link, mb_strtolower($commandpair[1]))."%'))");
+				}
+				break;
+			case "note":
+				if ($commandpair[1]) {
+					if ($commandpair[1] == "true")
+						array_push($query_keywords, "($not (note IS NOT NULL AND note != ''))");
+					else if ($commandpair[1] == "false")
+						array_push($query_keywords, "($not (note IS NULL OR note = ''))");
+					else
+						array_push($query_keywords, "($not (LOWER(note) LIKE '%".
+							db_escape_string($link, mb_strtolower($commandpair[1]))."%'))");
+				}
+				break;
+			case "star":
 
-				if ($commandpair[1] == "true")
-					array_push($query_keywords, "($not (note IS NOT NULL AND note != ''))");
-				else
-					array_push($query_keywords, "($not (note IS NULL OR note = ''))");
+				if ($commandpair[1]) {
+					if ($commandpair[1] == "true")
+						array_push($query_keywords, "($not (marked = true))");
+					else
+						array_push($query_keywords, "($not (marked = false))");
+				}
+				break;
+			case "pub":
+				if ($commandpair[1]) {
+					if ($commandpair[1] == "true")
+						array_push($query_keywords, "($not (published = true))");
+					else
+						array_push($query_keywords, "($not (published = false))");
 
-			} else if ($commandpair[0] == "star" && $commandpair[1]) {
+				}
+				break;
+			default:
+				if (strpos($k, "@") === 0) {
 
-				if ($commandpair[1] == "true")
-					array_push($query_keywords, "($not (marked = true))");
-				else
-					array_push($query_keywords, "($not (marked = false))");
+					$user_tz_string = get_pref($link, 'USER_TIMEZONE', $_SESSION['uid']);
+					$orig_ts = strtotime(substr($k, 1));
+					$k = date("Y-m-d", convert_timestamp($orig_ts, $user_tz_string, 'UTC'));
 
-			} else if ($commandpair[0] == "pub" && $commandpair[1]) {
+					//$k = date("Y-m-d", strtotime(substr($k, 1)));
 
-				if ($commandpair[1] == "true")
-					array_push($query_keywords, "($not (published = true))");
-				else
-					array_push($query_keywords, "($not (published = false))");
-
-			} else if (strpos($k, "@") === 0) {
-
-				$user_tz_string = get_pref($link, 'USER_TIMEZONE', $_SESSION['uid']);
-				$orig_ts = strtotime(substr($k, 1));
-				$k = date("Y-m-d", convert_timestamp($orig_ts, $user_tz_string, 'UTC'));
-
-				//$k = date("Y-m-d", strtotime(substr($k, 1)));
-
-				array_push($query_keywords, "(".SUBSTRING_FOR_DATE."(updated,1,LENGTH('$k')) $not = '$k')");
-			} else {
-				array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
-						OR UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
+					array_push($query_keywords, "(".SUBSTRING_FOR_DATE."(updated,1,LENGTH('$k')) $not = '$k')");
+				} else {
+					array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
+							OR UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
+				}
 			}
 		}
 
@@ -2677,14 +2705,16 @@
 
 		}
 
-		$allowed_elements = array('a', 'address', 'audio', 'article',
-			'b', 'big', 'blockquote', 'body', 'br', 'cite', 'center',
-			'code', 'dd', 'del', 'details', 'div', 'dl', 'font',
-			'dt', 'em', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-			'header', 'html', 'i', 'img', 'ins', 'kbd',
-			'li', 'nav', 'noscript', 'ol', 'p', 'pre', 'q', 's','small',
+		$allowed_elements = array('a', 'address', 'audio', 'article', 'aside',
+			'b', 'bdi', 'bdo', 'big', 'blockquote', 'body', 'br',
+			'caption', 'cite', 'center', 'code', 'col', 'colgroup',
+			'data', 'dd', 'del', 'details', 'div', 'dl', 'font',
+			'dt', 'em', 'footer', 'figure', 'figcaption',
+			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'html', 'i',
+			'img', 'ins', 'kbd', 'li', 'main', 'mark', 'nav', 'noscript',
+			'ol', 'p', 'pre', 'q', 'ruby', 'rp', 'rt', 's', 'samp', 'small',
 			'source', 'span', 'strike', 'strong', 'sub', 'summary',
-			'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead',
+			'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'time',
 			'tr', 'track', 'tt', 'u', 'ul', 'var', 'wbr', 'video' );
 
 		if ($_SESSION['hasSandbox']) $allowed_elements[] = 'iframe';
