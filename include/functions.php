@@ -317,7 +317,7 @@
 
 		global $fetch_last_error;
 		global $fetch_last_error_code;
-		
+
 		$url = str_replace(' ', '%20', $url);
 
 		if (!defined('NO_CURL') && function_exists('curl_init') && !ini_get("open_basedir")) {
@@ -1469,7 +1469,8 @@
 		$result = db_query($link, "SELECT id,caption,COUNT(unread) AS unread
 			FROM ttrss_labels2 LEFT JOIN ttrss_user_labels2 ON
 				(ttrss_labels2.id = label_id)
-					LEFT JOIN ttrss_user_entries ON (ref_id = article_id AND unread = true)
+				LEFT JOIN ttrss_user_entries ON (ref_id = article_id AND unread = true
+					AND ttrss_user_entries.owner_uid = $owner_uid)
 				WHERE ttrss_labels2.owner_uid = $owner_uid GROUP BY ttrss_labels2.id,
 					ttrss_labels2.caption");
 
@@ -2712,8 +2713,8 @@
 			'dt', 'em', 'footer', 'figure', 'figcaption',
 			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'html', 'i',
 			'img', 'ins', 'kbd', 'li', 'main', 'mark', 'nav', 'noscript',
-			'ol', 'p', 'pre', 'q', 'ruby', 'rp', 'rt', 's', 'samp', 'small',
-			'source', 'span', 'strike', 'strong', 'sub', 'summary',
+			'ol', 'p', 'pre', 'q', 'ruby', 'rp', 'rt', 's', 'samp', 'section',
+			'small', 'source', 'span', 'strike', 'strong', 'sub', 'summary',
 			'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'time',
 			'tr', 'track', 'tt', 'u', 'ul', 'var', 'wbr', 'video' );
 
@@ -3026,6 +3027,7 @@
 			".SUBSTRING_FOR_DATE."(updated,1,16) as updated,
 			(SELECT site_url FROM ttrss_feeds WHERE id = feed_id) as site_url,
 			(SELECT hide_images FROM ttrss_feeds WHERE id = feed_id) as hide_images,
+			(SELECT always_display_enclosures FROM ttrss_feeds WHERE id = feed_id) as always_display_enclosures,
 			num_comments,
 			tag_cache,
 			author,
@@ -3175,9 +3177,10 @@
 			$rv['content'] .= "<div class=\"postContent\">";
 
 			$rv['content'] .= $line["content"];
-
 			$rv['content'] .= format_article_enclosures($link, $id,
-				$always_display_enclosures, $line["content"], $line["hide_images"]);
+				sql_bool_to_bool($line["always_display_enclosures"]),
+				$line["content"],
+				sql_bool_to_bool($line["hide_images"]));
 
 			$rv['content'] .= "</div>";
 
