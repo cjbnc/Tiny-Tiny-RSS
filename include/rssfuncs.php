@@ -203,7 +203,7 @@
 		$result = db_query($link, "SELECT id,update_interval,auth_login,
 			feed_url,auth_pass,cache_images,last_updated,
 			mark_unread_on_update, owner_uid,
-			pubsub_state
+			pubsub_state, auth_pass_encrypted
 			FROM ttrss_feeds WHERE id = '$feed'");
 
 		if (db_num_rows($result) == 0) {
@@ -218,12 +218,19 @@
 		$mark_unread_on_update = sql_bool_to_bool(db_fetch_result($result,
 			0, "mark_unread_on_update"));
 		$pubsub_state = db_fetch_result($result, 0, "pubsub_state");
+		$auth_pass_encrypted = sql_bool_to_bool(db_fetch_result($result,
+			0, "auth_pass_encrypted"));
 
 		db_query($link, "UPDATE ttrss_feeds SET last_update_started = NOW()
 			WHERE id = '$feed'");
 
 		$auth_login = db_fetch_result($result, 0, "auth_login");
 		$auth_pass = db_fetch_result($result, 0, "auth_pass");
+
+		if ($auth_pass_encrypted) {
+			require_once "crypt.php";
+			$auth_pass = decrypt_string($auth_pass);
+		}
 
 		$cache_images = sql_bool_to_bool(db_fetch_result($result, 0, "cache_images"));
 		$fetch_url = db_fetch_result($result, 0, "feed_url");
@@ -252,6 +259,8 @@
 		$cache_timestamp = file_exists($cache_filename) ? filemtime($cache_filename) : 0;
 		$last_updated_timestamp = strtotime($last_updated);
 
+		$force_refetch = isset($_REQUEST["force_refetch"]);
+
 		if (file_exists($cache_filename) &&
 			is_readable($cache_filename) &&
 			!$auth_login && !$auth_pass &&
@@ -268,7 +277,7 @@
 						$rss_hash = sha1($rss_data);
 						@$rss = unserialize($rss_data);
 					}
-				} else {
+				} else if (!$force_refetch) {
 					if ($debug_enabled) {
 						_debug("update_rss_feed: local cache valid and older than last_updated, nothing to do.");
 					}
@@ -282,8 +291,6 @@
 				if ($debug_enabled) {
 					_debug("update_rss_feed: fetching [$fetch_url] (ts: $cache_timestamp/$last_updated_timestamp)");
 				}
-
-				$force_refetch = isset($_REQUEST["force_refetch"]);
 
 				$feed_data = fetch_file_contents($fetch_url, false,
 					$auth_login, $auth_pass, false,
@@ -396,14 +403,29 @@
 
 			$site_url = db_escape_string($link, mb_substr(rewrite_relative_url($fetch_url, $rss->get_link()), 0, 245));
 
-			if ($debug_enabled) {
-				_debug("update_rss_feed: checking favicon...");
-			}
+			if ($favicon_needs_check || $force_refetch) {
+				if ($debug_enabled) {
+					_debug("update_rss_feed: checking favicon...");
+				}
 
-			if ($favicon_needs_check) {
 				check_feed_favicon($site_url, $feed, $link);
+				$favicon_file = ICONS_DIR . "/$feed.ico";
 
-				db_query($link, "UPDATE ttrss_feeds SET favicon_last_checked = NOW()
+				if (file_exists($favicon_file)) {
+					    $favicon_color = calculate_avg_color($favicon_file);
+
+						 require_once "colors.php";
+
+						 if (is_array($favicon_color))
+								$tmp = array($favicon_color['red'],
+									$favicon_color['green'],
+									$favicon_color['blue']);
+
+								 $favicon_colorstring = ",favicon_avg_color = '" .
+								_color_pack($tmp) . "'";
+                }
+
+				db_query($link, "UPDATE ttrss_feeds SET favicon_last_checked = NOW() $favicon_colorstring
 					WHERE id = '$feed'");
 			}
 
@@ -524,7 +546,7 @@
 					_debug("update_rss_feed: date $entry_timestamp [$entry_timestamp_fmt]");
 				}
 
-				$entry_title = $item->get_title();
+				$entry_title = html_entity_decode($item->get_title());
 
 				$entry_link = rewrite_relative_url($site_url, $item->get_link());
 
@@ -1191,7 +1213,7 @@
 	}
 
 	function expire_cached_files($debug) {
-		foreach (array("simplepie", "images", "export") as $dir) {
+		foreach (array("simplepie", "images", "export", "upload") as $dir) {
 			$cache_dir = CACHE_DIR . "/$dir";
 
 			if ($debug) _debug("Expiring $cache_dir");

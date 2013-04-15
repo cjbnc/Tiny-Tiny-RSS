@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 116);
+	define('SCHEMA_VERSION', 117);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -508,7 +508,49 @@
 					}
 				}
 			}
+            return $icon_file;
 		}
+	}
+
+	function calculate_avg_color($iconFile) {
+
+		require_once "lib/floIcon.php";
+
+		$imgInfo = @getimagesize($iconFile);
+
+		if(strtolower($imgInfo['mime'])=='image/vnd.microsoft.icon') {
+			$ico = new floIcon();
+			@$ico->readICO($iconFile);
+			//TODO: error logging
+			if(count($ico->images)==0)
+				return null;
+			else {
+				$image = @$ico->images[count($ico->images)-1]->getImageResource();
+			}
+			$type = "ico";
+			}
+		elseif(strtolower($imgInfo['mime'])=='image/png') {
+            $image = imagecreatefrompng($iconFile);
+			$type = 'png';
+		}
+		elseif(strtolower($imgInfo['mime'])=='image/jpeg') {
+			$image = imagecreatefromjpeg($iconFile);
+			$type = 'jpg';
+		}
+		elseif(strtolower($imgInfo['mime'])=='image/gif') {
+			$image = imagecreatefromgif($iconFile);
+			$type = 'gif';
+		}
+		//TODO: error logging
+		if (is_null($image))
+			return null;
+		$width = imagesx($image);
+		$height = imagesy($image);
+		$pixel = imagecreatetruecolor(1, 1);
+		imagecopyresampled($pixel, $image, 0, 0, 0, 0, 1, 1, $width, $height);
+		$rgb = imagecolorat($pixel, 0, 0);
+		$color = imagecolorsforindex($pixel, $rgb);
+		return $color;
 	}
 
 	function print_select($id, $default, $values, $attributes = "") {
@@ -1614,12 +1656,22 @@
 			"SELECT id FROM ttrss_feeds
 			WHERE feed_url = '$url' AND owner_uid = ".$_SESSION["uid"]);
 
+		if (strlen(FEED_CRYPT_KEY) > 0) {
+			require_once "crypt.php";
+			$auth_pass = substr(encrypt_string($auth_pass), 0, 250);
+			$auth_pass_encrypted = 'true';
+		} else {
+			$auth_pass_encrypted = 'false';
+		}
+
+		$auth_pass = db_escape_string($link, $auth_pass);
+
 		if (db_num_rows($result) == 0) {
 			$result = db_query($link,
 				"INSERT INTO ttrss_feeds
-					(owner_uid,feed_url,title,cat_id, auth_login,auth_pass,update_method)
+					(owner_uid,feed_url,title,cat_id, auth_login,auth_pass,update_method,auth_pass_encrypted)
 				VALUES ('".$_SESSION["uid"]."', '$url',
-				'[Unknown]', $cat_qpart, '$auth_login', '$auth_pass', 0)");
+				'[Unknown]', $cat_qpart, '$auth_login', '$auth_pass', 0, $auth_pass_encrypted)");
 
 			$result = db_query($link,
 				"SELECT id FROM ttrss_feeds WHERE feed_url = '$url'
@@ -2550,6 +2602,9 @@
 						LEFT JOIN ttrss_feeds ON (feed_id = ttrss_feeds.id)";
 				}
 
+				if ($vfeed_query_part)
+					$vfeed_query_part .= "favicon_avg_color,";
+
 				$query = "SELECT DISTINCT
 						date_entered,
 						guid,
@@ -2925,17 +2980,10 @@
 	}
 
 	function render_login_form($link) {
+		header('Cache-Control: public');
+
 		require_once "login_form.php";
 		exit;
-	}
-
-	// from http://developer.apple.com/internet/safari/faq.html
-	function no_cache_incantation() {
-		header("Expires: Mon, 22 Dec 1980 00:00:00 GMT"); // Happy birthday to me :)
-		header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT"); // always modified
-		header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0"); // HTTP/1.1
-		header("Cache-Control: post-check=0, pre-check=0", false);
-		header("Pragma: no-cache"); // HTTP/1.0
 	}
 
 	function format_warning($msg, $id = "") {
