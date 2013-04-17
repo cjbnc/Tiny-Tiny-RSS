@@ -93,7 +93,7 @@
 
 <body id="ttrssPrefs" class="claro">
 
-<div id="notify" class="notify"><span id="notify_body">&nbsp;</span></div>
+<div id="notify" class="notify" style="display : none"></div>
 <div id="cmdline" style="display : none"></div>
 
 <div id="overlay">
@@ -130,6 +130,9 @@
 	<div id="userConfigTab" dojoType="dijit.layout.ContentPane"
 		href="backend.php?op=pref-users"
 		title="<?php echo __('Users') ?>"></div>
+	<div id="systemConfigTab" dojoType="dijit.layout.ContentPane"
+		href="backend.php?op=pref-system"
+		title="<?php echo __('System') ?>"></div>
 <?php } ?>
 <?php
 	$pluginhost->run_hooks($pluginhost::HOOK_PREFS_TABS,

@@ -182,6 +182,10 @@
 
 	db_close($link);
 
+	if ($schema_version != SCHEMA_VERSION) {
+		die("Schema version is wrong, please upgrade the database.\n");
+	}
+
 	while (true) {
 
 		// Since sleep is interupted by SIGCHLD, we need another way to
@@ -251,6 +255,8 @@
 					$link = db_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 					if (!init_connection($link)) return;
+
+					require_once "errorhandler.php";
 
 					// We disable stamp file, since it is of no use in a multiprocess update.
 					// not really, tho for the time being -fox

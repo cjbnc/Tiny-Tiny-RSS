@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 117);
+	define('SCHEMA_VERSION', 118);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -324,7 +324,7 @@
 
 		if (!defined('NO_CURL') && function_exists('curl_init') && !ini_get("open_basedir")) {
 
-			if (ini_get("safe_mode")) {
+			if (ini_get("safe_mode") || ini_get("open_basedir")) {
 				$ch = curl_init(geturl($url));
 			} else {
 				$ch = curl_init($url);
@@ -337,7 +337,7 @@
 
 			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout ? $timeout : FILE_FETCH_CONNECT_TIMEOUT);
 			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout ? $timeout : FILE_FETCH_TIMEOUT);
-			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("safe_mode"));
+			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("safe_mode") && !ini_get("open_basedir"));
 			curl_setopt($ch, CURLOPT_MAXREDIRS, 20);
 			curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
 			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -510,47 +510,6 @@
 			}
             return $icon_file;
 		}
-	}
-
-	function calculate_avg_color($iconFile) {
-
-		require_once "lib/floIcon.php";
-
-		$imgInfo = @getimagesize($iconFile);
-
-		if(strtolower($imgInfo['mime'])=='image/vnd.microsoft.icon') {
-			$ico = new floIcon();
-			@$ico->readICO($iconFile);
-			//TODO: error logging
-			if(count($ico->images)==0)
-				return null;
-			else {
-				$image = @$ico->images[count($ico->images)-1]->getImageResource();
-			}
-			$type = "ico";
-			}
-		elseif(strtolower($imgInfo['mime'])=='image/png') {
-            $image = imagecreatefrompng($iconFile);
-			$type = 'png';
-		}
-		elseif(strtolower($imgInfo['mime'])=='image/jpeg') {
-			$image = imagecreatefromjpeg($iconFile);
-			$type = 'jpg';
-		}
-		elseif(strtolower($imgInfo['mime'])=='image/gif') {
-			$image = imagecreatefromgif($iconFile);
-			$type = 'gif';
-		}
-		//TODO: error logging
-		if (is_null($image))
-			return null;
-		$width = imagesx($image);
-		$height = imagesy($image);
-		$pixel = imagecreatetruecolor(1, 1);
-		imagecopyresampled($pixel, $image, 0, 0, 0, 0, 1, 1, $width, $height);
-		$rgb = imagecolorat($pixel, 0, 0);
-		$color = imagecolorsforindex($pixel, $rgb);
-		return $color;
 	}
 
 	function print_select($id, $default, $values, $attributes = "") {
@@ -1892,6 +1851,8 @@
 			}
 			break;
 		}
+
+		return false;
 	}
 
 	function getFeedTitle($link, $id, $cat = false) {
@@ -3031,18 +2992,11 @@
 		if (strpos($ctype, "audio/") === 0) {
 
 			if ($_SESSION["hasAudio"] && (strpos($ctype, "ogg") !== false ||
-				strpos($_SERVER['HTTP_USER_AGENT'], "Chrome") !== false ||
-				strpos($_SERVER['HTTP_USER_AGENT'], "Safari") !== false )) {
+				$_SESSION["hasMp3"])) {
 
-				$id = 'AUDIO-' . uniqid();
-
-				$entry .= "<audio id=\"$id\"\" controls style='display : none'>
+				$entry .= "<audio controls>
 					<source type=\"$ctype\" src=\"$url\"></source>
 					</audio>";
-
-				$entry .= "<span onclick=\"player(this)\"
-					title=\"".__("Click to play")."\" status=\"0\"
-					class=\"player\" audio-id=\"$id\">".__("Play")."</span>";
 
 			} else {
 
@@ -3417,9 +3371,8 @@
 		return is_file(ICONS_DIR . "/$id.ico") && filesize(ICONS_DIR . "/$id.ico") > 0;
 	}
 
-	function init_connection($link) {
+	function init_connection_only($link) {
 		if ($link) {
-
 			if (DB_TYPE == "pgsql") {
 				pg_query($link, "set client_encoding = 'UTF-8'");
 				pg_set_client_encoding("UNICODE");
@@ -3432,6 +3385,16 @@
 					db_query($link, "SET NAMES " . MYSQL_CHARSET);
 				}
 			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	function init_connection($link) {
+		if ($link) {
+			init_connection_only($link);
 
 			global $pluginhost;
 
@@ -3490,6 +3453,8 @@
 	}
 
 	function format_article_labels($labels, $id) {
+
+		if (is_array($labels)) return '';
 
 		$labels_str = "";
 
@@ -3870,7 +3835,9 @@
 
 		$sphinxClient = new SphinxClient();
 
-		$sphinxClient->SetServer('localhost', 9312);
+		$sphinxpair = explode(":", SPHINX_SERVER, 2);
+
+		$sphinxClient->SetServer($sphinxpair[0], $sphinxpair[1]);
 		$sphinxClient->SetConnectTimeout(1);
 
 		$sphinxClient->SetFieldWeights(array('title' => 70, 'content' => 30,

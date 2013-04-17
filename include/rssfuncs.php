@@ -60,6 +60,12 @@
 	function update_daemon_common($link, $limit = DAEMON_FEED_LIMIT, $from_http = false, $debug = true) {
 		// Process all other feeds using last_updated and interval parameters
 
+		$schema_version = get_schema_version($link);
+
+		if ($schema_version != SCHEMA_VERSION) {
+			die("Schema version is wrong, please upgrade the database.\n");
+		}
+
 		define('PREFS_NO_CACHE', true);
 
 		// Test if the user has loggued in recently. If not, it does not update its feeds.
@@ -148,6 +154,7 @@
 
 		expire_cached_files($debug);
 		expire_lock_files($debug);
+		expire_error_log($link, $debug);
 
 		$nf = 0;
 
@@ -412,20 +419,16 @@
 				$favicon_file = ICONS_DIR . "/$feed.ico";
 
 				if (file_exists($favicon_file)) {
-					    $favicon_color = calculate_avg_color($favicon_file);
+						require_once "colors.php";
 
-						 require_once "colors.php";
+						$favicon_color = db_escape_string($link,
+							calculate_avg_color($favicon_file));
 
-						 if (is_array($favicon_color))
-								$tmp = array($favicon_color['red'],
-									$favicon_color['green'],
-									$favicon_color['blue']);
+						$favicon_colorstring = ",favicon_avg_color = '".$favicon_color."'";
+				}
 
-								 $favicon_colorstring = ",favicon_avg_color = '" .
-								_color_pack($tmp) . "'";
-                }
-
-				db_query($link, "UPDATE ttrss_feeds SET favicon_last_checked = NOW() $favicon_colorstring
+				db_query($link, "UPDATE ttrss_feeds SET favicon_last_checked = NOW()
+					$favicon_colorstring
 					WHERE id = '$feed'");
 			}
 
@@ -521,13 +524,15 @@
 				if (!$entry_guid) $entry_guid = $item->get_link();
 				if (!$entry_guid) $entry_guid = make_guid_from_title($item->get_title());
 
-				if ($debug_enabled) {
-					_debug("update_rss_feed: guid $entry_guid");
-				}
-
 				if (!$entry_guid) continue;
 
 				$entry_guid = "$owner_uid,$entry_guid";
+
+				$entry_guid_hashed = db_escape_string($link, 'SHA1:' . sha1($entry_guid));
+
+				if ($debug_enabled) {
+					_debug("update_rss_feed: guid $entry_guid / $entry_guid_hashed");
+				}
 
 				$entry_timestamp = "";
 
@@ -637,7 +642,7 @@
 
 				// FIXME not sure if owner_uid is a good idea here, we may have a base entry without user entry (?)
 				$result = db_query($link, "SELECT plugin_data,title,content,link,tag_cache,author FROM ttrss_entries, ttrss_user_entries
-					WHERE ref_id = id AND guid = '".db_escape_string($link, $entry_guid)."' AND owner_uid = $owner_uid");
+					WHERE ref_id = id AND (guid = '".db_escape_string($link, $entry_guid)."' OR guid = '$entry_guid_hashed') AND owner_uid = $owner_uid");
 
 				if (db_num_rows($result) != 0) {
 					$entry_plugin_data = db_fetch_result($result, 0, "plugin_data");
@@ -688,7 +693,7 @@
 				db_query($link, "BEGIN");
 
 				$result = db_query($link, "SELECT id FROM	ttrss_entries
-					WHERE guid = '$entry_guid'");
+					WHERE (guid = '$entry_guid' OR guid = '$entry_guid_hashed')");
 
 				if (db_num_rows($result) == 0) {
 
@@ -716,7 +721,7 @@
 							author)
 						VALUES
 							('$entry_title',
-							'$entry_guid',
+							'$entry_guid_hashed',
 							'$entry_link',
 							'$entry_timestamp_fmt',
 							'$entry_content',
@@ -749,13 +754,13 @@
 				// now it should exist, if not - bad luck then
 
 				$result = db_query($link, "SELECT
-						id,content_hash,no_orig_date,title,plugin_data,
+						id,content_hash,no_orig_date,title,plugin_data,guid,
 						".SUBSTRING_FOR_DATE."(date_updated,1,19) as date_updated,
 						".SUBSTRING_FOR_DATE."(updated,1,19) as updated,
 						num_comments
 					FROM
 						ttrss_entries
-					WHERE guid = '$entry_guid'");
+					WHERE guid = '$entry_guid' OR guid = '$entry_guid_hashed'");
 
 				$entry_ref_id = 0;
 				$entry_int_id = 0;
@@ -763,7 +768,7 @@
 				if (db_num_rows($result) == 1) {
 
 					if ($debug_enabled) {
-						_debug("update_rss_feed: base guid [$entry_guid] found, checking for user record");
+						_debug("update_rss_feed: base guid found, checking for user record");
 					}
 
 					// this will be used below in update handler
@@ -776,6 +781,14 @@
 
 					$ref_id = db_fetch_result($result, 0, "id");
 					$entry_ref_id = $ref_id;
+
+					/* $stored_guid = db_fetch_result($result, 0, "guid");
+					if ($stored_guid != $entry_guid_hashed) {
+						if ($debug_enabled) _debug("upgrading compat guid to hashed one");
+
+						db_query($link, "UPDATE ttrss_entries SET guid = '$entry_guid_hashed' WHERE
+							id = '$ref_id'");
+					} */
 
 					// check for user post link to main table
 
@@ -937,7 +950,7 @@
 					if ($post_needs_update) {
 
 						if (defined('DAEMON_EXTENDED_DEBUG')) {
-							_debug("update_rss_feed: post $entry_guid needs update...");
+							_debug("update_rss_feed: post $entry_guid_hashed needs update...");
 						}
 
 //						print "<!-- post $orig_title needs update : $post_needs_update -->";
@@ -1189,6 +1202,19 @@
 		$node = $doc->getElementsByTagName('body')->item(0);
 
 		return $doc->saveXML($node);
+	}
+
+	function expire_error_log($link, $debug) {
+		if ($debug) _debug("Removing old error log entries...");
+
+		if (DB_TYPE == "pgsql") {
+			db_query($link, "DELETE FROM ttrss_error_log
+				WHERE created_at < NOW() - INTERVAL '7 days'");
+		} else {
+			db_query($link, "DELETE FROM ttrss_error_log
+				WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)");
+		}
+
 	}
 
 	function expire_lock_files($debug) {
