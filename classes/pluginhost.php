@@ -1,6 +1,6 @@
 <?php
 class PluginHost {
-	private $link;
+	private $dbh;
 	private $hooks = array();
 	private $plugins = array();
 	private $handlers = array();
@@ -10,6 +10,7 @@ class PluginHost {
 	private $api_methods = array();
 	private $owner_uid;
 	private $debug;
+	private static $instance;
 
 	const HOOK_ARTICLE_BUTTON = 1;
 	const HOOK_ARTICLE_FILTER = 2;
@@ -35,12 +36,22 @@ class PluginHost {
 	const KIND_SYSTEM = 2;
 	const KIND_USER = 3;
 
-	function __construct($link) {
-		$this->link = $link;
-
+	function __construct($ignored = false) {
+		$this->dbh = Db::get();
 		$this->storage = $_SESSION["plugin_storage"];
 
 		if (!$this->storage) $this->storage = array();
+	}
+
+	private function __clone() {
+		//
+	}
+
+	public static function getInstance() {
+		if (self::$instance == null)
+			self::$instance = new self();
+
+		return self::$instance;
 	}
 
 	private function register_plugin($name, $plugin) {
@@ -48,8 +59,8 @@ class PluginHost {
 		$this->plugins[$name] = $plugin;
 	}
 
-	function get_link() {
-		return $this->link;
+	function get_dbh() {
+		return $this->dbh;
 	}
 
 	function get_plugins() {
@@ -223,12 +234,12 @@ class PluginHost {
 
 	function load_data($force = false) {
 		if ($this->owner_uid && (!$_SESSION["plugin_storage"] || $force))  {
-			$plugin = db_escape_string($this->link, $plugin);
+			$plugin = $this->dbh->escape_string($plugin);
 
-			$result = db_query($this->link, "SELECT name, content FROM ttrss_plugin_storage
+			$result = $this->dbh->query("SELECT name, content FROM ttrss_plugin_storage
 				WHERE owner_uid = '".$this->owner_uid."'");
 
-			while ($line = db_fetch_assoc($result)) {
+			while ($line = $this->dbh->fetch_assoc($result)) {
 				$this->storage[$line["name"]] = unserialize($line["content"]);
 			}
 
@@ -238,29 +249,29 @@ class PluginHost {
 
 	private function save_data($plugin) {
 		if ($this->owner_uid) {
-			$plugin = db_escape_string($this->link, $plugin);
+			$plugin = $this->dbh->escape_string($plugin);
 
-			db_query($this->link, "BEGIN");
+			$this->dbh->query("BEGIN");
 
-			$result = db_query($this->link,"SELECT id FROM ttrss_plugin_storage WHERE
+			$result = $this->dbh->query("SELECT id FROM ttrss_plugin_storage WHERE
 				owner_uid= '".$this->owner_uid."' AND name = '$plugin'");
 
 			if (!isset($this->storage[$plugin]))
 				$this->storage[$plugin] = array();
 
-			$content = db_escape_string($this->link, serialize($this->storage[$plugin]));
+			$content = $this->dbh->escape_string(serialize($this->storage[$plugin]));
 
-			if (db_num_rows($result) != 0) {
-				db_query($this->link, "UPDATE ttrss_plugin_storage SET content = '$content'
+			if ($this->dbh->num_rows($result) != 0) {
+				$this->dbh->query("UPDATE ttrss_plugin_storage SET content = '$content'
 					WHERE owner_uid= '".$this->owner_uid."' AND name = '$plugin'");
 
 			} else {
-				db_query($this->link, "INSERT INTO ttrss_plugin_storage
+				$this->dbh->query("INSERT INTO ttrss_plugin_storage
 					(name,owner_uid,content) VALUES
 					('$plugin','".$this->owner_uid."','$content')");
 			}
 
-			db_query($this->link, "COMMIT");
+			$this->dbh->query("COMMIT");
 		}
 	}
 
@@ -299,7 +310,7 @@ class PluginHost {
 
 			unset($this->storage[$idx]);
 
-			db_query($this->link, "DELETE FROM ttrss_plugin_storage WHERE name = '$idx'
+			$this->dbh->query("DELETE FROM ttrss_plugin_storage WHERE name = '$idx'
 				AND owner_uid = " . $this->owner_uid);
 
 			$_SESSION["plugin_storage"] = $this->storage;
