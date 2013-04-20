@@ -83,7 +83,10 @@ class My_Custom_Keys extends Plugin {
         $hotkeys["*h"]             = "feed_unhide_read";
 
 		return $hotkeys;
+	}
 
+	function api_version() {
+		return 2;
 	}
 }
 
