@@ -135,13 +135,14 @@
 	 * @param string $msg The debug message.
 	 * @return void
 	 */
-	function _debug($msg) {
+	function _debug($msg, $show = true) {
+
 		$ts = strftime("%H:%M:%S", time());
 		if (function_exists('posix_getpid')) {
 			$ts = "$ts/" . posix_getpid();
 		}
 
-		if (!(defined('QUIET') && QUIET)) {
+		if ($show && !(defined('QUIET') && QUIET)) {
 			print "[$ts] $msg\n";
 		}
 
@@ -391,20 +392,43 @@
 				}
 			}
 
-			$data = @file_get_contents($url);
+			if (!$post_query && $timestamp) {
+				$context = stream_context_create(array(
+					'http' => array(
+						'method' => 'GET',
+						'header' => "If-Modified-Since: ".gmdate("D, d M Y H:i:s \\G\\M\\T\r\n", $timestamp)
+					)));
+			} else {
+				$context = NULL;
+			}
+
+			$old_error = error_get_last();
+
+			$data = @file_get_contents($url, false, $context);
 
 			$fetch_last_content_type = false;  // reset if no type was sent from server
-			foreach ($http_response_header as $h) {
-				if (substr(strtolower($h), 0, 13) == 'content-type:') {
-					$fetch_last_content_type = substr($h, 14);
-					// don't abort here b/c there might be more than one
-					// e.g. if we were being redirected -- last one is the right one
+			if (is_array($http_response_header)) {
+				foreach ($http_response_header as $h) {
+					if (substr(strtolower($h), 0, 13) == 'content-type:') {
+						$fetch_last_content_type = substr($h, 14);
+						// don't abort here b/c there might be more than one
+						// e.g. if we were being redirected -- last one is the right one
+					}
+
+					if (substr(strtolower($h), 0, 7) == 'http/1.') {
+						$fetch_last_error_code = (int) substr($h, 9, 3);
+					}
 				}
 			}
 
-			if (!$data && function_exists('error_get_last')) {
+			if (!$data) {
 				$error = error_get_last();
-				$fetch_last_error = $error["message"];
+
+				if ($error['message'] != $old_error['message']) {
+					$fetch_last_error = $error["message"];
+				} else {
+					$fetch_last_error = "HTTP Code: $fetch_last_error_code";
+				}
 			}
 			return $data;
 		}
@@ -1556,6 +1580,7 @@
 	 *                     Here you should call extractfeedurls in rpc-backend
 	 *                     to get all possible feeds.
 	 *                 5 - Couldn't download the URL content.
+	 *                 6 - Content is an invalid XML.
 	 */
 	function subscribe_to_feed($url, $cat_id = 0,
 			$auth_login = '', $auth_pass = '') {
@@ -1585,6 +1610,18 @@
 			//use feed url as new URL
 			$url = key($feedUrls);
 		}
+
+		/* libxml_use_internal_errors(true);
+		$doc = new DOMDocument();
+		$doc->loadXML($contents);
+		$error = libxml_get_last_error();
+		libxml_clear_errors();
+
+		if ($error) {
+			$error_message = format_libxml_error($error);
+
+			return array("code" => 6, "message" => $error_message);
+		} */
 
 		if ($cat_id == "0" || !$cat_id) {
 			$cat_qpart = "NULL";
@@ -2925,19 +2962,19 @@
 	function format_warning($msg, $id = "") {
 		global $link;
 		return "<div class=\"warning\" id=\"$id\">
-			<img src=\"images/sign_excl.svg\">$msg</div>";
+			<span><img src=\"images/sign_excl.svg\"></span><span>$msg</span></div>";
 	}
 
 	function format_notice($msg, $id = "") {
 		global $link;
 		return "<div class=\"notice\" id=\"$id\">
-			<img src=\"images/sign_info.svg\">$msg</div>";
+			<span><img src=\"images/sign_info.svg\"></span><span>$msg</span></div>";
 	}
 
 	function format_error($msg, $id = "") {
 		global $link;
 		return "<div class=\"error\" id=\"$id\">
-			<img src=\"images/sign_excl.svg\">$msg</div>";
+			<span><img src=\"images/sign_excl.svg\"></span><span>$msg</span></div>";
 	}
 
 	function print_notice($msg) {
@@ -4199,6 +4236,12 @@
 
 	function feed_to_label_id($feed) {
 		return LABEL_BASE_INDEX - 1 + abs($feed);
+	}
+
+	function format_libxml_error($error) {
+		return T_sprintf("LibXML error %s at line %d (column %d): %s",
+				$error->code, $error->line, $error->column,
+				$error->message);
 	}
 
 ?>
