@@ -40,6 +40,8 @@ function setActiveFeedId(id, is_cat) {
 		$("headlines-frame").setAttribute("is-cat", is_cat ? 1 : 0);
 
 		selectFeed(id, is_cat);
+
+		PluginHost.run(PluginHost.HOOK_FEED_SET_ACTIVE, _active_article_id);
 	} catch (e) {
 		exception_error("setActiveFeedId", e);
 	}
@@ -307,7 +309,7 @@ function init() {
 				var id = getActiveArticleId();
 				var elem = $("CICD-"+id);
 				if(elem.visible()) {
-					cdmUnexpandArticle(null, id);
+					cdmCollapseArticle(null, id, false);
 				}
 				else {
 					cdmExpandArticle(id);
