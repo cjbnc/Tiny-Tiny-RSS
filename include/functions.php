@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 118);
+	define('SCHEMA_VERSION', 119);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -95,8 +95,11 @@
 			$lang = _TRANSLATION_OVERRIDE_DEFAULT;
 		}
 
-		if ($_SESSION["language"] && $_SESSION["language"] != "auto") {
-			$lang = $_SESSION["language"];
+		// startup_gettext() is called before session_start() so we can't rely
+		// on $_SESSION['language'] here.
+
+		if ($_COOKIE["ttrss_lang"] && $_COOKIE["ttrss_lang"] != "auto") {
+			$lang = $_COOKIE["ttrss_lang"];
 		}
 
 		if ($lang) {
@@ -125,8 +128,6 @@
 
 	require_once 'lib/pubsubhubbub/publisher.php';
 
-	$tz_offset = -1;
-	$utc_tz = new DateTimeZone('UTC');
 	$schema_version = false;
 
 	/**
@@ -853,24 +854,28 @@
 		if (!$timestamp) $timestamp = '1970-01-01 0:00';
 
 		global $utc_tz;
-		global $tz_offset;
+		global $user_tz;
+
+		if (!$utc_tz) $utc_tz = new DateTimeZone('UTC');
 
 		$timestamp = substr($timestamp, 0, 19);
 
 		# We store date in UTC internally
 		$dt = new DateTime($timestamp, $utc_tz);
 
-		if ($tz_offset == -1) {
+		$user_tz_string = get_pref('USER_TIMEZONE', $owner_uid);
 
-			$user_tz_string = get_pref('USER_TIMEZONE', $owner_uid);
+		if ($user_tz_string != 'Automatic') {
 
 			try {
-				$user_tz = new DateTimeZone($user_tz_string);
+				if (!$user_tz) $user_tz = new DateTimeZone($user_tz_string);
 			} catch (Exception $e) {
 				$user_tz = $utc_tz;
 			}
 
 			$tz_offset = $user_tz->getOffset($dt);
+		} else {
+			$tz_offset = (int) -$_SESSION["clientTzOffset"];
 		}
 
 		$user_timestamp = $dt->format('U') + $tz_offset;
@@ -2801,7 +2806,8 @@
 	}
 
 	function strip_harmful_tags($doc, $allowed_elements, $disallowed_attributes) {
-		$entries = $doc->getElementsByTagName("*");
+		$xpath = new DOMXPath($doc);
+		$entries = $xpath->query('//*');
 
 		foreach ($entries as $entry) {
 			if (!in_array($entry->nodeName, $allowed_elements)) {
@@ -3434,7 +3440,7 @@
 
 	function format_article_labels($labels, $id) {
 
-		if (is_array($labels)) return '';
+		if (!is_array($labels)) return '';
 
 		$labels_str = "";
 

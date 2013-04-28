@@ -256,10 +256,12 @@ function init() {
 		var hasAudio = !!a.canPlayType;
 		var hasSandbox = "sandbox" in document.createElement("iframe");
 		var hasMp3 = !!(a.canPlayType && a.canPlayType('audio/mpeg;').replace(/no/, ''));
+		var clientTzOffset = new Date().getTimezoneOffset() * 60;
 
 		new Ajax.Request("backend.php",	{
 			parameters: {op: "rpc", method: "sanityCheck", hasAudio: hasAudio,
 				hasMp3: hasMp3,
+			 	clientTzOffset: clientTzOffset,
 				hasSandbox: hasSandbox},
 			onComplete: function(transport) {
 					backend_sanity_check_callback(transport);
@@ -751,6 +753,8 @@ function parse_runtime_info(data) {
 		init_params[k] = v;
 		notify('');
 	}
+
+	PluginHost.run(PluginHost.HOOK_RUNTIME_INFO_LOADED, data);
 }
 
 function collapse_feedlist() {
@@ -990,7 +994,7 @@ function handle_rpc_json(transport, scheduled_call) {
 			if (counters)
 				parse_counters(counters, scheduled_call);
 
-			var runtime_info = reply['runtime-info'];;
+			var runtime_info = reply['runtime-info'];
 
 			if (runtime_info)
 				parse_runtime_info(runtime_info);

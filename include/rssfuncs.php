@@ -1242,7 +1242,7 @@
 
 			foreach ($filter["rules"] as $rule) {
 				$match = false;
-				$reg_exp = $rule["reg_exp"];
+				$reg_exp = str_replace('/', '\/', $rule["reg_exp"]);
 				$rule_inverse = $rule["inverse"];
 
 				if (!$reg_exp)
@@ -1271,8 +1271,12 @@
 					$match = @preg_match("/$reg_exp/i", $author);
 					break;
 				case "tag":
-					$tag_string = join(",", $tags);
-					$match = @preg_match("/$reg_exp/i", $tag_string);
+					foreach ($tags as $tag) {
+						if (@preg_match("/$reg_exp/i", $tag)) {
+							$match = true;
+							break;
+						}
+					}
 					break;
 				}
 
