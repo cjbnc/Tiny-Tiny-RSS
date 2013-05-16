@@ -1067,7 +1067,7 @@ function switchPanelMode(wide) {
 			dijit.byId("content-insert").attr("region", "bottom");
 
 	  		dijit.byId("content-insert").domNode.setStyle({width: 'auto',
-				height: '50%',
+				height: '70%',
 				borderLeftWidth: '0px',
 				borderTopWidth: '1px'});
 
