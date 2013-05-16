@@ -4,7 +4,7 @@ body#ttrssMain, body#ttrssPrefs, body#ttrssLogin, body {
 	margin : 0px;
 	padding : 0px;
 	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-	font-size: 14px;
+	font-size: 12px;
 }
 
 html, body#ttrssMain, body#ttrssPrefs, #main {
