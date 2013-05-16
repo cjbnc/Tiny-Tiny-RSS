@@ -3,9 +3,18 @@ body#ttrssMain, body#ttrssPrefs, body#ttrssLogin, body {
 	color : black;
 	margin : 0px;
 	padding : 0px;
-	font-family : sans-serif;
-	font-size : 13px;
+	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+	font-size: 14px;
 }
+
+html, body#ttrssMain, body#ttrssPrefs, #main {
+	width: 100%; 
+	height: 100%;
+	border: 0; 
+	padding: 0; 
+	margin: 0;
+} 
+
 
 body#ttrssPrefs {
 	background-color : #ecf4ff;
@@ -21,20 +30,12 @@ div.postReply {
 	padding : 0px;
 }
 
-div.postReply a {
-	color : #4684ff;
-}
-
-div.postReply a:hover {
-	color : black;
-}
-
 div.postReply div.postHeader {
 	border-width : 0px 0px 1px 0px;
 	border-style : solid;
 	border-color : #c0c0c0;
 	background : #fafafa;
-	box-shadow : 0px 0px 3px 0px #ccc;
+	box-shadow : 0px 0px 3px 0px rgba(0,0,0,0.1);
 	padding : 5px;
 	color : #909090;
 }
@@ -51,7 +52,6 @@ div.postReply div.postDate {
 
 div.postReply div.postContent {
 	padding : 10px;
-	font-size : 12px;
 }
 
 div.postReply div.postContent img {
@@ -62,7 +62,7 @@ div.postReply div.postContent img {
 
 div.postReply div.postEnclosures {
 	margin-top : 1em;
-	color : gray;
+	color : #555;
 }
 
 div.postReply img.tagsPic {
@@ -75,9 +75,12 @@ div.postReply img.tagsPic {
 div.articleNote {
 	background-color : #fff7d5;
 	padding : 5px;
-	border-style : none none dashed none;
+	border-radius : 4px;
+	margin : 5px;
+	border-style : solid;
 	border-color : #e7d796;
 	border-width : 1px;
+	box-shadow : 0px 0px 2px rgba(0,0,0,0.1);
 	background-color : #fff7d5;
 	color : #9a8c59;
 }
@@ -119,12 +122,12 @@ hr {
 }
 
 a {
-	color : black;
+	color : #4684ff;
 	text-decoration : none;
 }
 
 a:hover {
-	color : #4684ff;
+	color : #88b0f0;
 }
 
 #piggie {
@@ -144,7 +147,7 @@ a:hover {
 	min-width : 100px;
 	padding : 5px;
 	-width : 200px;
-	box-shadow : 0px 0px 2px #ccc;
+	box-shadow : 0px 0px 2px rgba(0,0,0,0.2);
 }
 
 #notify img {
@@ -188,11 +191,15 @@ a:hover {
 
 .hl div.hlTitle a {
 	font-weight : bold;
-	color : gray;
+	color : #555;
 }
 
 .hl.Unread div.hlTitle a {
 	color : black;
+}
+
+.hl.active {
+	box-shadow : inset 0px 0px 3px 0px rgba(0,0,0,0.1);
 }
 
 .hl.active div.hlTitle a {
@@ -204,7 +211,11 @@ a:hover {
 }
 
 #headlines-frame div.hl:nth-child(even) {
-	background : #f0f0f0;
+	background : #fafafa;
+}
+
+#headlines-frame.normal {
+
 }
 
 .hl {
@@ -230,12 +241,11 @@ div.filterTestHolder {
 
 #content-insert blockquote, #headlines-frame blockquote, .dijitContentPane blockquote {
 	margin : 5px 0px 5px 0px;
-	padding : 10px;
-	color : gray;
-	border-width : 0px 0px 0px 3px;
+	color : #555;
+	padding-left : 10px;
+	border-width : 0px 0px 0px 4px;
 	border-color : #c0c0c0;
 	border-style : solid;
-	background : #fafafa;
 }
 
 #content-insert code, #headlines-frame code, .dijitContentPane code {
@@ -247,7 +257,7 @@ div.filterTestHolder {
 #content-insert pre, #headlines-frame pre, .dijitContentPane pre {
 	margin : 5px 0px 5px 0px;
 	padding : 10px;
-	color : gray;
+	color : #555;
 	font-family : monospace;
 	font-size : 12px;
 	border-width : 0px;
@@ -264,7 +274,11 @@ div.notice, div.warning, div.error {
 	display : inline-block;
 	margin : 2px 0px 4px 0px;
 	font-size : 12px;
-	box-shadow : 0px 0px 2px #ccc;
+	border-style : solid;
+	border-color : #ccc;
+	border-radius : 4px;
+	border-width : 1px;
+	box-shadow : 0px 0px 2px rgba(0,0,0,0.1);
 }
 
 div.notice div.inner, div.warning div.inner, div.error div.inner {
@@ -273,14 +287,17 @@ div.notice div.inner, div.warning div.inner, div.error div.inner {
 
 div.notice {
 	background : #ecf4ff;
+	border-color : #88b0f0;
 }
 
 div.warning {
 	background : #fff7d5;
+	border-color : #e7d796;;
 }
 
 div.error {
 	background : #ffcccc;
+	border-color : #ff0000;
 }
 
 div.warning img, div.notice img, div.error img {
@@ -301,7 +318,7 @@ ul.nomarks {
 }
 
 div.prefHelp {
-	color : gray;
+	color : #555;
 	padding : 5px;
 }
 
@@ -310,24 +327,16 @@ span.feed_error {
 }
 
 .insensitive {
-	color : gray;
-}
-
-.insensitive a {
-	color : #4684ff;
-}
-
-.insensitive a:hover {
-	color : black;
+	color : #555;
 }
 
 div#headlines-toolbar {
 	border-width : 0px 0px 1px 0px;
 	background-color : #fcfcfc;
 	border-color : #c0c0c0;
-	font-size : 11px;
+	font-size : 12px;
 	font-family : "Segoe UI", Tahoma, sans-serif;
-	color : gray;
+	color : #555;
 	padding : 0px;
 	margin : 0px;
 	overflow : hidden;
@@ -354,15 +363,11 @@ div#headlines-toolbar span.r span.error {
 } 
 
 div#headlines-toolbar span.r a {
-	color : gray;
-}
-
-div#headlines-toolbar span.r a:hover {
-	color : black;
+	color : #555;
 }
 
 span.contentPreview {
-	color : gray;
+	color : #555;
 	font-weight : normal;
 }
 
@@ -385,13 +390,12 @@ span.hlLabelRef {
 
 div.postHeader div.postDate {
 	text-align : right;
-	color : gray;
+	color : #555;
 	float : right;
 }
 
 div.postHeader div {
 	padding-bottom : 3px;
-	font-size : 12px;
 }
 
 #feedUpdateErrors {
@@ -399,7 +403,6 @@ div.postHeader div {
 }
 
 #allEntryTags {
-	font-size : 12px;
 	border-width : 0px 0px 1px 0px;
 	border-style : solid;
 	border-color : #c0c0c0;
@@ -418,7 +421,7 @@ a.hlFeed {
 	padding : 1px 2px 1px 2px;
 	margin-bottom : 2px;
 	margin-top : 2px;
-	color : gray;
+	color : #555;
 }
 
 a.hlFeed:hover {
@@ -456,7 +459,7 @@ ul.feedErrorsList {
 }
 
 ul.feedErrorsList em {
-	color : gray;
+	color : #555;
 }
 
 ul.browseFeedList {
@@ -547,13 +550,12 @@ div.whiteBox {
 	padding : 1em;
 }
 
-html, body#ttrssMain, #main {
+/* html, body#ttrssMain, #main {
 	width: 100%; 
 	height: 100%;
-	border: 0; 
 	padding: 0; 
 	margin: 0;
-} 
+} */
 
 #toolbar div.actionChooser {
 	display : table-cell;
@@ -589,10 +591,6 @@ div.autocomplete ul li {
 	cursor : pointer;
 }
 
-a.visibleLink {
-	color : #4684ff;
-}
-
 .hlContentH a, .hlContentH span {
 	color : #00cc00;
 }
@@ -619,7 +617,7 @@ img.hlScorePic {
 
 div.dlgSec {
 	font-size : 12px;
-	color : gray;
+	color : #555;
 	font-weight : bold;
 	clear : both;
 	height : 20px;
@@ -682,7 +680,7 @@ div#cmdline {
 	left : 5px;
 	bottom : 5px;
 	font-size : 11px;
-	color : gray;
+	color : #555;
 	font-weight : bold;
 	background-color : white;
 	border : 1px solid #88b0f0;
@@ -724,7 +722,7 @@ div.hlRight img {
 }
 
 span.hlUpdated {
-	color : gray;
+	color : #555;
 	min-width : 100px;
 	display : table-cell;
 	width : 100%;
@@ -764,7 +762,7 @@ div.fatalError textarea {
 	height : 100px;
 }
 
-#main {
+#ttrssMain #main {
 	border-width : 0px;
 	margin : 0px;
 	padding : 0px;
@@ -778,7 +776,7 @@ div.fatalError textarea {
 
 #content-wrap {
 	padding : 0px;
-	border-width : 0px 0px 1px 1px;
+	border-width : 0px 0px 0px 1px;
 	border-style : solid;
   	border-color : #c0c0c0;
 	margin : 0px;
@@ -791,6 +789,8 @@ div.fatalError textarea {
 	border-bottom-width : 0px;
 	border-top-width : 0px;
 	overflow : hidden;
+	box-shadow : inset 0px 0px 3px rgba(0,0,0,0.1);
+	background : #f9fbff;
 }
 
 #headlines-wrap-inner {
@@ -802,10 +802,10 @@ div.fatalError textarea {
 #headlines-frame {
 	padding : 0px;
 	border-color : #c0c0c0;
-	border-left-width : 0px;
-	border-right-width : 0px;
+	border-style : solid;
+	border-width : 0px;
 	margin-top : 0px;
-	border-top-width : 0px;
+	box-shadow : inset 0px 0px 3px rgba(0,0,0,0.1);
 }
 
 #headlines-toolbar_splitter, #toolbar_splitter {
@@ -817,13 +817,14 @@ div.fatalError textarea {
 	margin : 0px;
 	border-width : 0px;
 	white-space: nowrap;
-	font-size : 11px;
+	font-size : 12px;
+	box-shadow : 0px 0px 2px rgba(0,0,0,0.1);
 }
 
 #header {
 	border-width : 0px;
 	text-align : right;
-	color : gray;
+	color : #555;
 	padding : 5px 5px 0px 0px;
 	margin : 0px;
 	position : absolute;
@@ -834,7 +835,7 @@ div.fatalError textarea {
 
 #footer {
 	text-align : center;
-	color : gray;
+	color : #555;
 	padding : 4px 4px 8px 4px;
 	border-width : 0px;
 }
@@ -845,6 +846,7 @@ div.fatalError textarea {
 	border-bottom-width : 0px;
 	border-right-width : 0px;
 	border-left-width : 0px;
+	line-height: 20px;
 	overflow : auto;
 }
 
@@ -852,8 +854,12 @@ div.fatalError textarea {
 	font-weight : bold;
 }
 
+.dijitTreeLabel {
+	outline : 0;
+}
+
 .feedParam {
-	color : gray;
+	color : #555;
 	float : right;
 	margin-right : 1em;
 }
@@ -864,7 +870,7 @@ div.fatalError textarea {
 }
 
 .dijitTreeLabel.Disabled, .labelParam.Disabled {
-	color : gray;
+	color : #555;
 }
 
 .dijitTreeRow.Error {
@@ -894,10 +900,10 @@ img.feedIcon, img.tinyFeedIcon {
 
 .player {
 	display : inline-block;
-	color : gray;
+	color : #555;
 	font-size : 11px;
 	font-family : sans-serif;
-	border : 1px solid gray;
+	border : 1px solid #555;
 	padding : 0px 4px 0px 4px;
 	margin : 0px 2px 0px 2px;
 	width : 50px;
@@ -920,7 +926,7 @@ img.feedIcon, img.tinyFeedIcon {
 	margin-left : 1px;
 	text-align : center;
 	padding : 1em;
-	color : gray;
+	color : #555;
 }
 
 ul#filterDlg_Matches, ul#filterDlg_Actions {
@@ -984,7 +990,7 @@ div.postContent iframe {
 }
 
 div.postHeader span.author {
-	color : gray;
+	color : #555;
 	font-size : 11px;
 	font-weight : normal;
 }
@@ -992,22 +998,31 @@ div.postHeader span.author {
 body#ttrssZoom {
 	margin-left : auto;
 	margin-right : auto;
-	padding : 2em;
+	padding : 20px;
 	max-width : 800px;
-	background : #f0f0f0;
+	background : #f9fbff;
 }
 
 body#ttrssZoom div.postContent p {
 	max-width : 650px;
 }
 
+body#ttrssZoom div.postHeader {
+	margin : 10px;
+	border : 1px solid #ccc;
+	box-shadow : none;
+	border-radius : 4px;
+}
+
 body#ttrssZoom div.postReply {
 	border : 1px solid #ccc;
-	box-shadow : 0px 0px 3px #ccc;
+	border-radius : 4px;
+	box-shadow : inset 0px 0px 3px rgba(0,0,0,0.1);
+	background : white;
 }
 
 body#ttrssZoom div.postContent {
-	background-color : white;
+
 }
 
 body#ttrssZoom div.footer {
@@ -1018,7 +1033,7 @@ body#ttrssZoom div.footer {
 body#ttrssZoom div.postContent img {
 	max-width : 650px;
 	height : auto;
-}
+} 
 
 select.attachments {
 	display : block;
@@ -1034,10 +1049,11 @@ div.hl.active {
 	margin-right : 25px;
 }
 
-#feedTree .dijitTreeRow, #feedTree .dijitFocused {
-	padding : 1px 0px 1px;
+#feedTree .dijitTreeRow {
+	padding : 2px 0px 2px;
 	border-width : 1px;
 	border-color : transparent;
+	color : #333;
 }
 
 #feedTree .dijitTreeNode {
@@ -1048,6 +1064,13 @@ div.hl.active {
 #feedTree { 
 	height : 100%;
 	overflow-x : hidden;
+	font-family : "Segoe UI", Tahoma, sans-serif;
+}
+
+#feedTree .counterNode.aux {
+	background : #f0f0f0;
+	color : #999;
+	border-color : #f0f0f0;
 }
 
 #feedTree .counterNode {
@@ -1072,3 +1095,9 @@ div.hl.active {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
+
+body#ttrssPrefs hr {
+	border-color : #ecf4ff;
+	max-width : 100%;
+}
+
