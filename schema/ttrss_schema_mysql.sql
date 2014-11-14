@@ -355,6 +355,7 @@ insert into ttrss_prefs (pref_name,type_id,def_value,section_id) values('DEFAULT
 insert into ttrss_prefs (pref_name,type_id,def_value,section_id) values('ALLOW_DUPLICATE_POSTS', 1, 'false', 1);
 insert into ttrss_prefs (pref_name,type_id,def_value,section_id) values('ENABLE_FEED_CATS', 1, 'true', 2);
 insert into ttrss_prefs (pref_name,type_id,def_value,section_id) values('SHOW_CONTENT_PREVIEW', 1, 'true', 2);
+insert into ttrss_prefs (pref_name,type_id,def_value,section_id) values('DISABLE_HEADLINE_POPUPS', 1, 'false', 2);
 insert into ttrss_prefs (pref_name,type_id,def_value,section_id) values('SHORT_DATE_FORMAT', 2, 'M d, G:i', 3);
 insert into ttrss_prefs (pref_name,type_id,def_value,section_id) values('LONG_DATE_FORMAT', 2, 'D, M d Y - G:i', 3);
 insert into ttrss_prefs (pref_name,type_id,def_value,section_id) values('COMBINED_DISPLAY_MODE', 1, 'true', 2);
