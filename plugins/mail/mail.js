@@ -26,6 +26,7 @@ function emailArticle(id) {
 					new Ajax.Request("backend.php", {
 						parameters: dojo.objectToQuery(this.attr('value')),
 						onComplete: function(transport) {
+							console.log(transport.responseText);
 
 							var reply = JSON.parse(transport.responseText);
 
@@ -43,13 +44,13 @@ function emailArticle(id) {
 			},
 			href: query});
 
-		var tmph = dojo.connect(dialog, 'onLoad', function() {
+		/* var tmph = dojo.connect(dialog, 'onLoad', function() {
 	   	dojo.disconnect(tmph);
 
 		   new Ajax.Autocompleter('emailArticleDlg_destination', 'emailArticleDlg_dst_choices',
 			   "backend.php?op=pluginhandler&plugin=mail&method=completeEmails",
 			   { tokens: '', paramName: "search" });
-		});
+		}); */
 
 		dialog.show();
 

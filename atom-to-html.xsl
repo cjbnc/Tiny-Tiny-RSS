@@ -9,7 +9,7 @@
 <html>
 	<head>
 		<title><xsl:value-of select="atom:title"/></title>
-		<link rel="stylesheet" type="text/css" href="utility.css"/>
+		<link rel="stylesheet" type="text/css" href="css/utility.css"/>
 		<script language="javascript" src="lib/xsl_mop-up.js"></script>
 	</head>
 
@@ -20,9 +20,6 @@
 		</div>
 
 		<div class="rss">
-
-		<img class="feedicon" src="images/pub_set.svg" style="width : 64px; height : 64px;" 
-			alt="feed icon"/>
 
 		<h1><xsl:value-of select="atom:title"/></h1>
 
@@ -41,7 +38,6 @@
 				<p><a href="{enclosure/@url}">Extra...</a></p>
 			</xsl:if>
 
-			<hr/>
 
 		</xsl:for-each>
 

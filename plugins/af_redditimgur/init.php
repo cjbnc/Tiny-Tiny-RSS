@@ -1,7 +1,5 @@
 <?php
 class Af_RedditImgur extends Plugin {
-
-	private $link;
 	private $host;
 
 	function about() {
@@ -11,19 +9,14 @@ class Af_RedditImgur extends Plugin {
 	}
 
 	function init($host) {
-		$this->link = $host->get_link();
 		$this->host = $host;
 
 		$host->add_hook($host::HOOK_ARTICLE_FILTER, $this);
 	}
 
 	function hook_article_filter($article) {
-		$owner_uid = $article["owner_uid"];
-
-		$force = false;
 
 		if (strpos($article["link"], "reddit.com/r/") !== FALSE) {
-			if (strpos($article["plugin_data"], "redditimgur,$owner_uid:") === FALSE || $force) {
 				$doc = new DOMDocument();
 				@$doc->loadHTML($article["content"]);
 
@@ -40,7 +33,9 @@ class Af_RedditImgur extends Plugin {
 							 	$img = $doc->createElement('img');
 								$img->setAttribute("src", $entry->getAttribute("href"));
 
-								$entry->parentNode->replaceChild($img, $entry);
+								$br = $doc->createElement('br');
+								$entry->parentNode->insertBefore($img, $entry);
+								$entry->parentNode->insertBefore($br, $entry);
 
 								$found = true;
 							}
@@ -63,10 +58,15 @@ class Af_RedditImgur extends Plugin {
 										$aentries = $axpath->query('(//img[@src])');
 
 										foreach ($aentries as $aentry) {
-											if (preg_match("/^http:\/\/i.imgur.com\/$token\./", $aentry->getAttribute("src"))) {
+											if (preg_match("/\/\/i.imgur.com\/$token\./", $aentry->getAttribute("src"))) {
 												$img = $doc->createElement('img');
 												$img->setAttribute("src", $aentry->getAttribute("src"));
+
+												$br = $doc->createElement('br');
+
 												$entry->parentNode->insertBefore($img, $entry);
+												$entry->parentNode->insertBefore($br, $entry);
+
 												$found = true;
 
 												break;
@@ -77,7 +77,7 @@ class Af_RedditImgur extends Plugin {
 							}
 
 							// linked albums, ffs
-							if (preg_match("/^http:\/\/imgur.com\/a\/[^\.]+$/", $entry->getAttribute("href"), $matches)) {
+							if (preg_match("/^http:\/\/imgur.com\/(a|album)\/[^\.]+$/", $entry->getAttribute("href"), $matches)) {
 
 								$album_content = fetch_file_contents($entry->getAttribute("href"),
 									false, false, false, false, 10);
@@ -94,7 +94,12 @@ class Af_RedditImgur extends Plugin {
 											$img = $doc->createElement('img');
 											$img->setAttribute("src", $aentry->getAttribute("href"));
 											$entry->parentNode->insertBefore($doc->createElement('br'), $entry);
+
+											$br = $doc->createElement('br');
+
 											$entry->parentNode->insertBefore($img, $entry);
+											$entry->parentNode->insertBefore($br, $entry);
+
 											$found = true;
 										}
 									}
@@ -114,15 +119,16 @@ class Af_RedditImgur extends Plugin {
 
 					if ($node && $found) {
 						$article["content"] = $doc->saveXML($node);
-						if (!$force) $article["plugin_data"] = "redditimgur,$owner_uid:" . $article["plugin_data"];
 					}
 				}
-			} else if (isset($article["stored"]["content"])) {
-				$article["content"] = $article["stored"]["content"];
-			}
 		}
 
 		return $article;
 	}
+
+	function api_version() {
+		return 2;
+	}
+
 }
 ?>

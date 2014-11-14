@@ -1,8 +1,8 @@
-var notify_silent = false;
 var loading_progress = 0;
 var sanity_check_done = false;
 var init_params = {};
 var _label_base_index = -1024;
+var notify_hide_timerid = false;
 
 Ajax.Base.prototype.initialize = Ajax.Base.prototype.initialize.wrap(
 	function (callOriginal, options) {
@@ -44,11 +44,23 @@ function exception_error(location, e, ext_info) {
 
 	try {
 
-		if (ext_info) {
-			if (ext_info.responseText) {
-				ext_info = ext_info.responseText;
-			}
+		if (ext_info)
+			ext_info = JSON.stringify(ext_info);
+
+		try {
+			new Ajax.Request("backend.php", {
+				parameters: {op: "rpc", method: "log", logmsg: msg},
+				onComplete: function (transport) {
+					console.log(transport.responseText);
+				} });
+
+		} catch (eii) {
+			console.log("Exception while trying to log the error.");
+			console.log(eii);
 		}
+
+		msg += "<p>"+ __("The error will be reported to the configured log destination.") +
+			"</p>";
 
 		var content = "<div class=\"fatalError\">" +
 			"<pre>" + msg + "</pre>";
@@ -89,13 +101,15 @@ function exception_error(location, e, ext_info) {
 			title: "Unhandled exception",
 			style: "width: 600px",
 			report: function() {
-				if (confirm(__("Are you sure to report this exception to tt-rss.org? The report will include your browser information. Your IP would be saved in the database."))) {
+				if (confirm(__("Are you sure to report this exception to tt-rss.org? The report will include information about your web browser and tt-rss configuration. Your IP will be saved in the database."))) {
 
 					document.forms['exceptionForm'].params.value = $H({
 						browserName: navigator.appName,
 						browserVersion: navigator.appVersion,
 						browserPlatform: navigator.platform,
 						browserCookies: navigator.cookieEnabled,
+						ttrssVersion: __ttrss_version,
+						initParams: JSON.stringify(init_params),
 					}).toQueryString();
 
 					document.forms['exceptionForm'].submit();
@@ -106,7 +120,28 @@ function exception_error(location, e, ext_info) {
 
 		dialog.show();
 
-	} catch (e) {
+	} catch (ei) {
+		console.log("Exception while trying to report an exception. Oh boy.");
+		console.log(ei);
+		console.log("Original exception:");
+		console.log(e);
+
+		msg += "\n\nAdditional exception caught while trying to show the error dialog.\n\n" +  format_exception_error('exception_error', ei);
+
+		try {
+			new Ajax.Request("backend.php", {
+				parameters: {op: "rpc", method: "log", logmsg: msg},
+				onComplete: function (transport) {
+					console.log(transport.responseText);
+				} });
+
+		} catch (eii) {
+			console.log("Third exception while trying to log the error! Seriously?");
+			console.log(eii);
+		}
+
+		msg += "\n\nThe error will be reported to the configured log destination.";
+
 		alert(msg);
 	}
 
@@ -147,42 +182,22 @@ function param_unescape(arg) {
 		return unescape(arg);
 }
 
-var notify_hide_timerid = false;
-
-function hide_notify() {
-	var n = $("notify");
-	if (n) {
-		n.style.display = "none";
-	}
-}
-
-function notify_silent_next() {
-	notify_silent = true;
-}
-
 function notify_real(msg, no_hide, n_type) {
 
-	if (notify_silent) {
-		notify_silent = false;
-		return;
-	}
-
 	var n = $("notify");
-	var nb = $("notify_body");
 
-	if (!n || !nb) return;
+	if (!n) return;
 
 	if (notify_hide_timerid) {
 		window.clearTimeout(notify_hide_timerid);
 	}
 
 	if (msg == "") {
-		if (n.style.display == "block") {
-			notify_hide_timerid = window.setTimeout("hide_notify()", 0);
+		if (n.hasClassName("visible")) {
+			notify_hide_timerid = window.setTimeout(function() {
+				n.removeClassName("visible") }, 0);
 		}
 		return;
-	} else {
-		n.style.display = "block";
 	}
 
 	/* types:
@@ -194,35 +209,42 @@ function notify_real(msg, no_hide, n_type) {
 
 	*/
 
-	if (typeof __ != 'undefined') {
-		msg = __(msg);
-	}
+	msg = "<span class=\"msg\"> " + __(msg) + "</span>";
 
-	if (n_type == 1) {
-		n.className = "notify";
-	} else if (n_type == 2) {
-		n.className = "notifyProgress";
-		msg = "<img src='images/indicator_white.gif'> " + msg;
+	if (n_type == 2) {
+		msg = "<span><img src='images/indicator_white.gif'></span>" + msg;
+		no_hide = true;
 	} else if (n_type == 3) {
-		n.className = "notifyError";
-		msg = "<img src='images/sign_excl.svg'> " + msg;
+		msg = "<span><img src='images/alert.png'></span>" + msg;
 	} else if (n_type == 4) {
-		n.className = "notifyInfo";
-		msg = "<img src='images/sign_info.svg'> " + msg;
+		msg = "<span><img src='images/information.png'></span>" + msg;
 	}
 
-//	msg = "<img src='images/live_com_loading.gif'> " + msg;
+	msg += " <span><img src=\"images/cross.png\" class=\"close\" title=\"" +
+		__("Click to close") + "\" onclick=\"notify('')\"></span>";
 
-	if (no_hide) {
-		msg += " (<a href='#' onclick=\"notify('')\">X</a>)";
-	}
+	n.innerHTML = msg;
 
+	window.setTimeout(function() {
+		// goddamnit firefox
+		if (n_type == 2) {
+		n.className = "notify notify_progress visible";
+			} else if (n_type == 3) {
+			n.className = "notify notify_error visible";
+			msg = "<span><img src='images/alert.png'></span>" + msg;
+		} else if (n_type == 4) {
+			n.className = "notify notify_info visible";
+		} else {
+			n.className = "notify visible";
+		}
 
-	nb.innerHTML = msg;
+		if (!no_hide) {
+			notify_hide_timerid = window.setTimeout(function() {
+				n.removeClassName("visible") }, 5*1000);
+		}
 
-	if (!no_hide) {
-		notify_hide_timerid = window.setTimeout("hide_notify()", 3000);
-	}
+	}, 10);
+
 }
 
 function notify(msg, no_hide) {
@@ -369,6 +391,9 @@ function toggleSelectRow2(sender, row, is_cdm) {
 		row.addClassName('Selected');
 	else
 		row.removeClassName('Selected');
+
+	if (typeof updateSelectedPrompt != undefined)
+		updateSelectedPrompt();
 }
 
 
@@ -380,6 +405,9 @@ function toggleSelectRow(sender, row) {
 		row.addClassName('Selected');
 	else
 		row.removeClassName('Selected');
+
+	if (typeof updateSelectedPrompt != undefined)
+		updateSelectedPrompt();
 }
 
 function checkboxToggleElement(elem, id) {
@@ -416,7 +444,7 @@ function closeInfoBox(cleanup) {
 }
 
 
-function displayDlg(id, param, callback) {
+function displayDlg(title, id, param, callback) {
 
 	notify_progress("Loading, please wait...", true);
 
@@ -426,14 +454,14 @@ function displayDlg(id, param, callback) {
 	new Ajax.Request("backend.php", {
 		parameters: query,
 		onComplete: function (transport) {
-			infobox_callback2(transport);
+			infobox_callback2(transport, title);
 			if (callback) callback(transport);
 		} });
 
 	return false;
 }
 
-function infobox_callback2(transport) {
+function infobox_callback2(transport, title) {
 	try {
 		var dialog = false;
 
@@ -444,13 +472,7 @@ function infobox_callback2(transport) {
 		//console.log("infobox_callback2");
 		notify('');
 
-		var title = transport.responseXML.getElementsByTagName("title")[0];
-		if (title)
-			title = title.firstChild.nodeValue;
-
-		var content = transport.responseXML.getElementsByTagName("content")[0];
-
-		content = content.firstChild.nodeValue;
+		var content = transport.responseText;
 
 		if (!dialog) {
 			dialog = new dijit.Dialog({
@@ -515,7 +537,7 @@ function fatalError(code, msg, ext_info) {
 		if (code == 6) {
 			window.location.href = "index.php";
 		} else if (code == 5) {
-			window.location.href = "db-updater.php";
+			window.location.href = "public.php?op=dbupdate";
 		} else {
 
 			if (msg == "") msg = "Unknown error";
@@ -555,28 +577,6 @@ function fatalError(code, msg, ext_info) {
 	}
 }
 
-/* function filterDlgCheckType(sender) {
-
-	try {
-
-		var ftype = sender.value;
-
-		// if selected filter type is 5 (Date) enable the modifier dropbox
-		if (ftype == 5) {
-			Element.show("filterDlg_dateModBox");
-			Element.show("filterDlg_dateChkBox");
-		} else {
-			Element.hide("filterDlg_dateModBox");
-			Element.hide("filterDlg_dateChkBox");
-
-		}
-
-	} catch (e) {
-		exception_error("filterDlgCheckType", e);
-	}
-
-} */
-
 function filterDlgCheckAction(sender) {
 
 	try {
@@ -610,37 +610,9 @@ function filterDlgCheckAction(sender) {
 
 }
 
-function filterDlgCheckDate() {
-	try {
-		var dialog = dijit.byId("filterEditDlg");
-
-		var reg_exp = dialog.attr('value').reg_exp;
-
-		var query = "?op=rpc&method=checkDate&date=" + reg_exp;
-
-		new Ajax.Request("backend.php", {
-			parameters: query,
-			onComplete: function(transport) {
-
-				var reply = JSON.parse(transport.responseText);
-
-				if (reply['result'] == true) {
-					alert(__("Date syntax appears to be correct:") + " " + reply['date']);
-					return;
-				} else {
-					alert(__("Date syntax is incorrect."));
-				}
-
-			} });
-
-
-	} catch (e) {
-		exception_error("filterDlgCheckDate", e);
-	}
-}
 
 function explainError(code) {
-	return displayDlg("explainError", code);
+	return displayDlg(__("Error explained"), "explainError", code);
 }
 
 function loading_set_progress(p) {
@@ -717,15 +689,6 @@ function hotkey_prefix_timeout() {
 		exception_error("hotkey_prefix_timeout", e);
 	}
 }
-
-function hideAuxDlg() {
-	try {
-		Element.hide('auxDlg');
-	} catch (e) {
-		exception_error("hideAuxDlg", e);
-	}
-}
-
 
 function uploadIconHandler(rc) {
 	try {
@@ -846,7 +809,7 @@ function addLabel(select, callback) {
 
 function quickAddFeed() {
 	try {
-		var query = "backend.php?op=dlg&method=quickAddFeed";
+		var query = "backend.php?op=feeds&method=quickAddFeed";
 
 		// overlapping widgets
 		if (dijit.byId("batchSubDlg")) dijit.byId("batchSubDlg").destroyRecursive();
@@ -869,14 +832,21 @@ function quickAddFeed() {
 						onComplete: function(transport) {
 							try {
 
-								var reply = JSON.parse(transport.responseText);
+								try {
+									var reply = JSON.parse(transport.responseText);
+								} catch (e) {
+									Element.hide("feed_add_spinner");
+									alert(__("Failed to parse output. This can indicate server timeout and/or network issues. Backend output was logged to browser console."));
+									console.log('quickAddFeed, backend returned:' + transport.responseText);
+									return;
+								}
 
 								var rc = reply['result'];
 
 								notify('');
 								Element.hide("feed_add_spinner");
 
-								console.log("GOT RC: " + rc);
+								console.log(rc);
 
 								switch (parseInt(rc['code'])) {
 								case 1:
@@ -892,45 +862,16 @@ function quickAddFeed() {
 									alert(__("Specified URL doesn't seem to contain any feeds."));
 									break;
 								case 4:
-									/* notify_progress("Searching for feed urls...", true);
-
-									new Ajax.Request("backend.php", {
-										parameters: 'op=rpc&method=extractfeedurls&url=' + param_escape(feed_url),
-										onComplete: function(transport, dialog, feed_url) {
-
-											notify('');
-
-											var reply = JSON.parse(transport.responseText);
-
-											var feeds = reply['urls'];
-
-											console.log(transport.responseText);
-
-											var select = dijit.byId("feedDlg_feedContainerSelect");
-
-											while (select.getOptions().length > 0)
-												select.removeOption(0);
-
-											var count = 0;
-											for (var feedUrl in feeds) {
-												select.addOption({value: feedUrl, label: feeds[feedUrl]});
-												count++;
-											}
-
-//											if (count > 5) count = 5;
-//											select.size = count;
-
-											Effect.Appear('feedDlg_feedsContainer', {duration : 0.5});
-										}
-									});
-									break; */
-
 									feeds = rc['feeds'];
+
+									Element.show("fadd_multiple_notify");
 
 									var select = dijit.byId("feedDlg_feedContainerSelect");
 
 									while (select.getOptions().length > 0)
 										select.removeOption(0);
+
+									select.addOption({value: '', label: __("Expand to select feed")});
 
 									var count = 0;
 									for (var feedUrl in feeds) {
@@ -944,6 +885,11 @@ function quickAddFeed() {
 								case 5:
 									alert(__("Couldn't download the specified URL: %s").
 											replace("%s", rc['message']));
+									break;
+								case 6:
+									alert(__("XML validation failed: %s").
+											replace("%s", rc['message']));
+									break;
 									break;
 								case 0:
 									alert(__("You are already subscribed to this feed."));
@@ -1214,33 +1160,48 @@ function quickAddFilter() {
 			href: query});
 
 		if (!inPreferences()) {
+			var selectedText = getSelectionText();
+
 			var lh = dojo.connect(dialog, "onLoad", function(){
 				dojo.disconnect(lh);
 
-				var query = "op=rpc&method=getlinktitlebyid&id=" + getActiveArticleId();
+				if (selectedText != "") {
 
-				new Ajax.Request("backend.php", {
-				parameters: query,
-				onComplete: function(transport) {
-					var reply = JSON.parse(transport.responseText);
+					var feed_id = activeFeedIsCat() ? 'CAT:' + parseInt(getActiveFeedId()) :
+						getActiveFeedId();
 
-					var title = false;
+					var rule = { reg_exp: selectedText, feed_id: feed_id, filter_type: 1 };
 
-					if (reply && reply) title = reply.title;
+					addFilterRule(null, dojo.toJson(rule));
 
-					if (title || getActiveFeedId() || activeFeedIsCat()) {
+				} else {
 
-						console.log(title + " " + getActiveFeedId());
+					var query = "op=rpc&method=getlinktitlebyid&id=" + getActiveArticleId();
 
-						var feed_id = activeFeedIsCat() ? 'CAT:' + parseInt(getActiveFeedId()) :
-							getActiveFeedId();
+					new Ajax.Request("backend.php", {
+					parameters: query,
+					onComplete: function(transport) {
+						var reply = JSON.parse(transport.responseText);
 
-						var rule = { reg_exp: title, feed_id: feed_id, filter_type: 1 };
+						var title = false;
 
-						addFilterRule(null, dojo.toJson(rule));
-					}
+						if (reply && reply) title = reply.title;
 
-				} });
+						if (title || getActiveFeedId() || activeFeedIsCat()) {
+
+							console.log(title + " " + getActiveFeedId());
+
+							var feed_id = activeFeedIsCat() ? 'CAT:' + parseInt(getActiveFeedId()) :
+								getActiveFeedId();
+
+							var rule = { reg_exp: title, feed_id: feed_id, filter_type: 1 };
+
+							addFilterRule(null, dojo.toJson(rule));
+						}
+
+					} });
+
+				}
 
 			});
 		}
@@ -1335,16 +1296,15 @@ function backend_sanity_check_callback(transport) {
 		if (params) {
 			console.log('reading init-params...');
 
-			if (params) {
-				for (k in params) {
-					var v = params[k];
-					console.log("IP: " + k + " => " + v);
-
-					if (k == "label_base_index") _label_base_index = parseInt(v);
-				}
+			for (k in params) {
+				console.log("IP: " + k + " => " + JSON.stringify(params[k]));
+				if (k == "label_base_index") _label_base_index = parseInt(params[k]);
 			}
 
 			init_params = params;
+
+			// PluginHost might not be available on non-index pages
+			window.PluginHost && PluginHost.run(PluginHost.HOOK_PARAMS_LOADED, init_params);
 		}
 
 		sanity_check_done = true;
@@ -1423,7 +1383,7 @@ function genUrlChangeKey(feed, is_cat) {
 
 			notify_progress("Trying to change address...", true);
 
-			var query = "?op=rpc&method=regenFeedKey&id=" + param_escape(feed) +
+			var query = "?op=pref-feeds&method=regenFeedKey&id=" + param_escape(feed) +
 				"&is_cat=" + param_escape(is_cat);
 
 			new Ajax.Request("backend.php", {
@@ -1651,7 +1611,7 @@ function editFeed(feed, event) {
 
 function feedBrowser() {
 	try {
-		var query = "backend.php?op=dlg&method=feedBrowser";
+		var query = "backend.php?op=feeds&method=feedBrowser";
 
 		if (dijit.byId("feedAddDlg"))
 			dijit.byId("feedAddDlg").hide();
@@ -1999,3 +1959,25 @@ function feed_to_label_id(feed) {
 	return _label_base_index - 1 + Math.abs(feed);
 }
 
+// http://stackoverflow.com/questions/6251937/how-to-get-selecteduser-highlighted-text-in-contenteditable-element-and-replac
+
+function getSelectionText() {
+	var text = "";
+
+	if (typeof window.getSelection != "undefined") {
+		var sel = window.getSelection();
+		if (sel.rangeCount) {
+			var container = document.createElement("div");
+			for (var i = 0, len = sel.rangeCount; i < len; ++i) {
+				container.appendChild(sel.getRangeAt(i).cloneContents());
+			}
+			text = container.innerHTML;
+		}
+	} else if (typeof document.selection != "undefined") {
+		if (document.selection.type == "Text") {
+			text = document.selection.createRange().textText;
+		}
+	}
+
+	return text.stripTags();
+}

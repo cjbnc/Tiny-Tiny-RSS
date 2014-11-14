@@ -1,7 +1,5 @@
 <?php
 class Af_Unburn extends Plugin {
-
-	private $link;
 	private $host;
 
 	function about() {
@@ -11,7 +9,6 @@ class Af_Unburn extends Plugin {
 	}
 
 	function init($host) {
-		$this->link = $host->get_link();
 		$this->host = $host;
 
 		$host->add_hook($host::HOOK_ARTICLE_FILTER, $this);
@@ -27,9 +24,7 @@ class Af_Unburn extends Plugin {
 		  		strpos($article["link"], "/~r/") !== FALSE ||
 				strpos($article["link"], "feedsportal.com") !== FALSE)) {
 
-			if (strpos($article["plugin_data"], "unburn,$owner_uid:") === FALSE) {
-
-				if (ini_get("safe_mode")) {
+				if (ini_get("safe_mode") || ini_get("open_basedir")) {
 					$ch = curl_init(geturl($article["link"]));
 				} else {
 					$ch = curl_init($article["link"]);
@@ -38,10 +33,14 @@ class Af_Unburn extends Plugin {
 				curl_setopt($ch, CURLOPT_TIMEOUT, 5);
 				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 				curl_setopt($ch, CURLOPT_HEADER, true);
-				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("safe_mode"));
+				curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("safe_mode") && !ini_get("open_basedir"));
 				curl_setopt($ch, CURLOPT_USERAGENT, SELF_USER_AGENT);
 
-				$contents = @curl_exec($ch);
+				if (defined('_CURL_HTTP_PROXY')) {
+					curl_setopt($ch, CURLOPT_PROXY, _CURL_HTTP_PROXY);
+				}
+
+				@curl_exec($ch);
 
 				$real_url = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
 
@@ -72,9 +71,6 @@ class Af_Unburn extends Plugin {
 					$article["plugin_data"] = "unburn,$owner_uid:" . $article["plugin_data"];
 					$article["link"] = $real_url;
 				}
-			} else if (isset($article["stored"]["link"])) {
-				$article["link"] = $article["stored"]["link"];
-			}
 		}
 
 		return $article;
@@ -117,7 +113,7 @@ class Af_Unburn extends Plugin {
 				preg_match("/(Location:|URI:)[^(\n)]*/", $header, $matches);
 				$url = trim(str_replace($matches[1],"",$matches[0]));
 				$url_parsed = parse_url($url);
-				return (isset($url_parsed))? geturl($url, $referer):'';
+				return (isset($url_parsed))? geturl($url):'';
 			}
 			$oline='';
 			foreach($status as $key=>$eline){$oline.='['.$key.']'.$eline.' ';}
@@ -128,5 +124,10 @@ class Af_Unburn extends Plugin {
 		}
 		return $url;
 	}
+
+	function api_version() {
+		return 2;
+	}
+
 }
 ?>
