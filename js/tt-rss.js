@@ -512,6 +512,8 @@ function init() {
 					setCookie("ttrss_ci_height", 0);
 
 					switchPanelMode(_widescreen_mode);
+				} else {
+					alert(__("Widescreen is not available in combined mode."));
 				}
 		};
 		hotkey_actions["help_dialog"] = function() {
@@ -711,6 +713,8 @@ function quickMenuGo(opid) {
 				setCookie("ttrss_ci_height", 0);
 
 				switchPanelMode(_widescreen_mode);
+			} else {
+				alert(__("Widescreen is not available in combined mode."));
 			}
 			break;
 		case "qmcHKhelp":
@@ -756,15 +760,6 @@ function parse_runtime_info(data) {
 
 //		console.log("RI: " + k + " => " + v);
 
-		if (k == "new_version_available") {
-			if (v == "1") {
-				Element.show(dijit.byId("newVersionIcon").domNode);
-			} else {
-				Element.hide(dijit.byId("newVersionIcon").domNode);
-			}
-			return;
-		}
-
 		if (k == "dep_ts" && parseInt(getInitParam("dep_ts")) > 0) {
 			if (parseInt(getInitParam("dep_ts")) < parseInt(v) && getInitParam("reload_on_ts_change")) {
 				window.location.reload();
@@ -774,6 +769,16 @@ function parse_runtime_info(data) {
 		if (k == "daemon_is_running" && v != 1) {
 			notify_error("<span onclick=\"javascript:explainError(1)\">Update daemon is not running.</span>", true);
 			return;
+		}
+
+		if (k == "update_result") {
+			var updatesIcon = dijit.byId("updatesIcon").domNode;
+
+			if (v) {
+				Element.show(updatesIcon);
+			} else {
+				Element.hide(updatesIcon);
+			}
 		}
 
 		if (k == "daemon_stamp_ok" && v != 1) {
@@ -965,27 +970,6 @@ function reverseHeadlineOrder() {
 
 	} catch (e) {
 		exception_error("reverseHeadlineOrder", e);
-	}
-}
-
-function newVersionDlg() {
-	try {
-		var query = "backend.php?op=dlg&method=newVersion";
-
-		if (dijit.byId("newVersionDlg"))
-			dijit.byId("newVersionDlg").destroyRecursive();
-
-		dialog = new dijit.Dialog({
-			id: "newVersionDlg",
-			title: __("New version available!"),
-			style: "width: 600px",
-			href: query,
-		});
-
-		dialog.show();
-
-	} catch (e) {
-		exception_error("newVersionDlg", e);
 	}
 }
 

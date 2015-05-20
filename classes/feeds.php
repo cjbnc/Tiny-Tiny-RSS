@@ -588,6 +588,7 @@ class Feeds extends Handler_Protected {
 						onclick=\"return cdmClicked(event, $id);\"
 						class=\"titleWrap $hlc_suffix\">
 						<a class=\"title $hlc_suffix\"
+						title=\"".htmlspecialchars($line["title"])."\"
 						target=\"_blank\" href=\"".
 						htmlspecialchars($line["link"])."\">".
 						$line["title"] .

@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 126);
+	define('SCHEMA_VERSION', 127);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -13,6 +13,8 @@
 	$fetch_last_error_content = false; // curl only for the time being
 	$fetch_curl_used = false;
 	$suppress_debugging = false;
+
+	libxml_disable_entity_loader(true);
 
 	mb_internal_encoding("UTF-8");
 	date_default_timezone_set('UTC');
@@ -65,6 +67,7 @@
 		$tr = array(
 					"auto"  => "Detect automatically",
 					"ar_SA" => "العربيّة (Arabic)",
+					"bg_BG" => "Bulgarian",
 					"da_DA" => "Dansk",
 					"ca_CA" => "Català",
 					"cs_CZ" => "Česky",
@@ -356,6 +359,9 @@
 
 		$url = ltrim($url, ' ');
 		$url = str_replace(' ', '%20', $url);
+
+		if (strpos($url, "//") === 0)
+			$url = 'http:' . $url;
 
 		if (!defined('NO_CURL') && function_exists('curl_init')) {
 
@@ -799,10 +805,6 @@
 	// user preferences are checked on every login, not here
 
 	function initialize_user($uid) {
-
-		db_query("insert into ttrss_feeds (owner_uid,title,feed_url)
-			values ('$uid', 'Tiny Tiny RSS: New Releases',
-			'http://tt-rss.org/releases.rss')");
 
 		db_query("insert into ttrss_feeds (owner_uid,title,feed_url)
 			values ('$uid', 'Tiny Tiny RSS: Forum',
