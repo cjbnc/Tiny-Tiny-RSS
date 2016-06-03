@@ -2,7 +2,7 @@
 class Handler_Public extends Handler {
 
 	private function generate_syndicated_feed($owner_uid, $feed, $is_cat,
-		$limit, $offset, $search, $search_mode,
+		$limit, $offset, $search,
 		$view_mode = false, $format = 'atom', $order = false, $orig_guid = false, $start_ts = false) {
 
 		require_once "lib/MiniTemplator.class.php";
@@ -37,12 +37,31 @@ class Handler_Public extends Handler {
 			break;
 		}
 
-		//function queryFeedHeadlines($feed, $limit, $view_mode, $cat_view, $search, $search_mode, $override_order = false, $offset = 0, $owner_uid = 0, $filter = false, $since_id = 0, $include_children = false, $ignore_vfeed_group = false, $override_strategy = false, $override_vfeed = false, $start_ts = false) {
-
-		$qfh_ret = queryFeedHeadlines($feed,
-			1, $view_mode, $is_cat, $search, $search_mode,
+		/*$qfh_ret = queryFeedHeadlines($feed,
+			1, $view_mode, $is_cat, $search, false,
 			$date_sort_field, $offset, $owner_uid,
-			false, 0, true, true, false, false, $start_ts);
+			false, 0, true, true, false, false, $start_ts);*/
+
+		//function queryFeedHeadlines($feed,
+		// $limit, $view_mode, $cat_view, $search, $search_mode,
+		// $override_order = false, $offset = 0, $owner_uid = 0,
+		// $filter = false, $since_id = 0, $include_children = false, $ignore_vfeed_group = false, $override_strategy = false, $override_vfeed = false, $start_ts = false, $check_top_id = false) {
+
+		$params = array(
+			"owner_uid" => $owner_uid,
+			"feed" => $feed,
+			"limit" => 1,
+			"view_mode" => $view_mode,
+			"cat_view" => $is_cat,
+			"search" => $search,
+			"override_order" => $date_sort_field,
+			"include_children" => true,
+			"ignore_vfeed_group" => true,
+			"offset" => $offset,
+			"start_ts" => $start_ts
+		);
+
+		$qfh_ret = queryFeedHeadlines($params);
 
 		$result = $qfh_ret[0];
 
@@ -60,11 +79,26 @@ class Handler_Public extends Handler {
 			header("Last-Modified: $last_modified", true);
 		}
 
-		$qfh_ret = queryFeedHeadlines($feed,
-			$limit, $view_mode, $is_cat, $search, $search_mode,
+		/*$qfh_ret = queryFeedHeadlines($feed,
+			$limit, $view_mode, $is_cat, $search, false,
 			$date_sort_field, $offset, $owner_uid,
-			false, 0, true, true, false, false, $start_ts);
+			false, 0, true, true, false, false, $start_ts);*/
 
+		$params = array(
+			"owner_uid" => $owner_uid,
+			"feed" => $feed,
+			"limit" => $limit,
+			"view_mode" => $view_mode,
+			"cat_view" => $is_cat,
+			"search" => $search,
+			"override_order" => $date_sort_field,
+			"include_children" => true,
+			"ignore_vfeed_group" => true,
+			"offset" => $offset,
+			"start_ts" => $start_ts
+		);
+
+		$qfh_ret = queryFeedHeadlines($params);
 
 		$result = $qfh_ret[0];
 		$feed_title = htmlspecialchars($qfh_ret[1]);
@@ -93,10 +127,15 @@ class Handler_Public extends Handler {
 
 			$tpl->setVariable('SELF_URL', htmlspecialchars(get_self_url_prefix()), true);
 			while ($line = $this->dbh->fetch_assoc($result)) {
-				$line["content_preview"] = truncate_string(strip_tags($line["content"]), 100, '...');
+
+				$line["content_preview"] = sanitize(truncate_string(strip_tags($line["content"]), 100, '...'));
 
 				foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_QUERY_HEADLINES) as $p) {
 					$line = $p->hook_query_headlines($line);
+				}
+
+				foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_ARTICLE_EXPORT_FEED) as $p) {
+					$line = $p->hook_article_export_feed($line, $feed, $is_cat);
 				}
 
 				$tpl->setVariable('ARTICLE_ID',
@@ -107,7 +146,7 @@ class Handler_Public extends Handler {
 				$tpl->setVariable('ARTICLE_EXCERPT', $line["content_preview"], true);
 
 				$content = sanitize($line["content"], false, $owner_uid,
-					$feed_site_url);
+					$feed_site_url, false, $line["id"]);
 
 				if ($line['note']) {
 					$content = "<div style=\"$note_style\">Article note: " . $line['note'] . "</div>" .
@@ -180,17 +219,24 @@ class Handler_Public extends Handler {
 			$feed['articles'] = array();
 
 			while ($line = $this->dbh->fetch_assoc($result)) {
-				$line["content_preview"] = truncate_string(strip_tags($line["content_preview"]), 100, '...');
+
+				$line["content_preview"] = sanitize(truncate_string(strip_tags($line["content_preview"]), 100, '...'));
+
 				foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_QUERY_HEADLINES) as $p) {
 					$line = $p->hook_query_headlines($line, 100);
 				}
+
+				foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_ARTICLE_EXPORT_FEED) as $p) {
+					$line = $p->hook_article_export_feed($line, $feed, $is_cat);
+				}
+
 				$article = array();
 
 				$article['id'] = $line['link'];
 				$article['link']	= $line['link'];
 				$article['title'] = $line['title'];
 				$article['excerpt'] = $line["content_preview"];
-				$article['content'] = sanitize($line["content"], false, $owner_uid);
+				$article['content'] = sanitize($line["content"], false, $owner_uid, $feed_site_url, false, $line["id"]);
 				$article['updated'] = date('c', strtotime($line["updated"]));
 
 				if ($line['note']) $article['note'] = $line['note'];
@@ -374,7 +420,6 @@ class Handler_Public extends Handler {
 		$offset = (int)$this->dbh->escape_string($_REQUEST["offset"]);
 
 		$search = $this->dbh->escape_string($_REQUEST["q"]);
-		$search_mode = $this->dbh->escape_string($_REQUEST["smode"]);
 		$view_mode = $this->dbh->escape_string($_REQUEST["view-mode"]);
 		$order = $this->dbh->escape_string($_REQUEST["order"]);
 		$start_ts = $this->dbh->escape_string($_REQUEST["ts"]);
@@ -400,7 +445,7 @@ class Handler_Public extends Handler {
 
 		if ($owner_id) {
 			$this->generate_syndicated_feed($owner_id, $feed, $is_cat, $limit,
-				$offset, $search, $search_mode, $view_mode, $format, $order, $orig_guid, $start_ts);
+				$offset, $search, $view_mode, $format, $order, $orig_guid, $start_ts);
 		} else {
 			header('HTTP/1.1 403 Forbidden');
 		}
@@ -499,7 +544,7 @@ class Handler_Public extends Handler {
 					</div>
 					<button type="submit"><?php echo __('Share') ?></button>
 					<button onclick="return window.close()"><?php echo __('Cancel') ?></button>
-					</div>
+					</td>
 
 				</form>
 				</td></tr></table>
@@ -935,7 +980,7 @@ class Handler_Public extends Handler {
 						for ($i = $updater->getSchemaVersion() + 1; $i <= SCHEMA_VERSION; $i++) {
 							print "<li>Performing update up to version $i...";
 
-							$result = $updater->performUpdateTo($i);
+							$result = $updater->performUpdateTo($i, true);
 
 							if (!$result) {
 								print "<span class='err'>FAILED!</span></li></ul>";
@@ -945,7 +990,7 @@ class Handler_Public extends Handler {
 								<input type=\"submit\" value=\"".__("Return to Tiny Tiny RSS")."\">
 								</form>";
 
-								break;
+								return;
 							} else {
 								print "<span class='ok'>OK!</span></li>";
 							}
@@ -971,10 +1016,10 @@ class Handler_Public extends Handler {
 
 						print "<h2>Database update required</h2>";
 
-						print "<h3>";
-						printf("Your Tiny Tiny RSS database needs update to the latest version: %d to %d.",
-							$updater->getSchemaVersion(), SCHEMA_VERSION);
-						print "</h3>";
+						print_notice("<h4>".
+						sprintf("Your Tiny Tiny RSS database needs update to the latest version: %d to %d.",
+							$updater->getSchemaVersion(), SCHEMA_VERSION).
+						"</h4>");
 
 						print_warning("Please backup your database before proceeding.");
 

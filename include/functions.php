@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 127);
+	define('SCHEMA_VERSION', 130);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -98,8 +98,6 @@
 
 	require_once "lib/accept-to-gettext.php";
 	require_once "lib/gettext/gettext.inc";
-
-	require_once "lib/languagedetect/LanguageDetect.php";
 
 	function startup_gettext() {
 
@@ -250,27 +248,13 @@
 		if (!$purge_unread) $query_limit = " unread = false AND ";
 
 		if (DB_TYPE == "pgsql") {
-			$pg_version = get_pgsql_version();
-
-			if (preg_match("/^7\./", $pg_version) || preg_match("/^8\.0/", $pg_version)) {
-
-				$result = db_query("DELETE FROM ttrss_user_entries WHERE
-					ttrss_entries.id = ref_id AND
-					marked = false AND
-					feed_id = '$feed_id' AND
-					$query_limit
-					ttrss_entries.date_updated < NOW() - INTERVAL '$purge_interval days'");
-
-			} else {
-
-				$result = db_query("DELETE FROM ttrss_user_entries
-					USING ttrss_entries
-					WHERE ttrss_entries.id = ref_id AND
-					marked = false AND
-					feed_id = '$feed_id' AND
-					$query_limit
-					ttrss_entries.date_updated < NOW() - INTERVAL '$purge_interval days'");
-			}
+			$result = db_query("DELETE FROM ttrss_user_entries
+				USING ttrss_entries
+				WHERE ttrss_entries.id = ref_id AND
+				marked = false AND
+				feed_id = '$feed_id' AND
+				$query_limit
+				ttrss_entries.date_updated < NOW() - INTERVAL '$purge_interval days'");
 
 		} else {
 
@@ -322,7 +306,7 @@
 
 		// purge orphaned posts in main content table
 		$result = db_query("DELETE FROM ttrss_entries WHERE
-			(SELECT COUNT(int_id) FROM ttrss_user_entries WHERE ref_id = id) = 0");
+			NOT EXISTS (SELECT ref_id FROM ttrss_user_entries WHERE ref_id = id)");
 
 		if ($do_output) {
 			$rows = db_affected_rows($result);
@@ -349,7 +333,9 @@
 		}
 	}
 
-	function fetch_file_contents($url, $type = false, $login = false, $pass = false, $post_query = false, $timeout = false, $timestamp = 0, $useragent = false) {
+	// TODO: multiple-argument way is deprecated, first parameter is a hash now
+	function fetch_file_contents($options /* previously: 0: $url , 1: $type = false, 2: $login = false, 3: $pass = false,
+ 				4: $post_query = false, 5: $timeout = false, 6: $timestamp = 0, 7: $useragent = false*/) {
 
 		global $fetch_last_error;
 		global $fetch_last_error_code;
@@ -357,26 +343,41 @@
 		global $fetch_last_content_type;
 		global $fetch_curl_used;
 
+		if (!is_array($options)) {
+
+			// falling back on compatibility shim
+			$options = array(
+					"url" => func_get_arg(0),
+					"type" => @func_get_arg(1),
+					"login" => @func_get_arg(2),
+					"pass" => @func_get_arg(3),
+					"post_query" => @func_get_arg(4),
+					"timeout" => @func_get_arg(5),
+					"timestamp" => @func_get_arg(6),
+					"useragent" => @func_get_arg(7)
+			);
+		}
+
+		$url = $options["url"];
+		$type = isset($options["type"]) ? $options["type"] : false;
+		$login = isset($options["login"]) ? $options["login"] : false;
+		$pass = isset($options["pass"]) ? $options["pass"] : false;
+		$post_query = isset($options["post_query"]) ? $options["post_query"] : false;
+		$timeout = isset($options["timeout"]) ? $options["timeout"] : false;
+		$timestamp = isset($options["timestamp"]) ? $options["timestamp"] : 0;
+		$useragent = isset($options["useragent"]) ? $options["useragent"] : false;
+
 		$url = ltrim($url, ' ');
 		$url = str_replace(' ', '%20', $url);
 
 		if (strpos($url, "//") === 0)
 			$url = 'http:' . $url;
 
-		if (!defined('NO_CURL') && function_exists('curl_init')) {
+		if (!defined('NO_CURL') && function_exists('curl_init') && !ini_get("open_basedir")) {
 
 			$fetch_curl_used = true;
 
-			if (ini_get("safe_mode") || ini_get("open_basedir") || defined("FORCE_GETURL")) {
-				$new_url = geturl($url);
-				if (!$new_url) {
-				    // geturl has already populated $fetch_last_error
-				    return false;
-				}
-				$ch = curl_init($new_url);
-			} else {
-				$ch = curl_init($url);
-			}
+			$ch = curl_init($url);
 
 			if ($timestamp && !$post_query) {
 				curl_setopt($ch, CURLOPT_HTTPHEADER,
@@ -385,18 +386,17 @@
 
 			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout ? $timeout : FILE_FETCH_CONNECT_TIMEOUT);
 			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout ? $timeout : FILE_FETCH_TIMEOUT);
-			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("safe_mode") && !ini_get("open_basedir"));
+			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("open_basedir"));
 			curl_setopt($ch, CURLOPT_MAXREDIRS, 20);
 			curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
 			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 			curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
 			curl_setopt($ch, CURLOPT_USERAGENT, $useragent ? $useragent :
 				SELF_USER_AGENT);
 			curl_setopt($ch, CURLOPT_ENCODING, "");
 			//curl_setopt($ch, CURLOPT_REFERER, $url);
 
-			if (!ini_get("safe_mode") && !ini_get("open_basedir")) {
+			if (!ini_get("open_basedir")) {
 				curl_setopt($ch, CURLOPT_COOKIEJAR, "/dev/null");
 			}
 
@@ -461,13 +461,18 @@
 			}
 
 			if (!$post_query && $timestamp) {
-				$context = stream_context_create(array(
-					'http' => array(
-						'method' => 'GET',
-						'header' => "If-Modified-Since: ".gmdate("D, d M Y H:i:s \\G\\M\\T\r\n", $timestamp)
-					)));
+				 $context = stream_context_create(array(
+					  'http' => array(
+							'method' => 'GET',
+							'protocol_version'=> 1.1,
+							'header' => "If-Modified-Since: ".gmdate("D, d M Y H:i:s \\G\\M\\T\r\n", $timestamp)
+					  )));
 			} else {
-				$context = NULL;
+				 $context = stream_context_create(array(
+					  'http' => array(
+							'method' => 'GET',
+							'protocol_version'=> 1.1
+					  )));
 			}
 
 			$old_error = error_get_last();
@@ -596,8 +601,10 @@
 		}
 	}
 
-	function print_select($id, $default, $values, $attributes = "") {
-		print "<select name=\"$id\" id=\"$id\" $attributes>";
+	function print_select($id, $default, $values, $attributes = "", $name = "") {
+		if (!$name) $name = $id;
+
+		print "<select name=\"$name\" id=\"$id\" $attributes>";
 		foreach ($values as $v) {
 			if ($v == $default)
 				$sel = "selected=\"1\"";
@@ -611,8 +618,10 @@
 		print "</select>";
 	}
 
-	function print_select_hash($id, $default, $values, $attributes = "") {
-		print "<select name=\"$id\" id='$id' $attributes>";
+	function print_select_hash($id, $default, $values, $attributes = "", $name = "") {
+		if (!$name) $name = $id;
+
+		print "<select name=\"$name\" id='$id' $attributes>";
 		foreach (array_keys($values) as $v) {
 			if ($v == $default)
 				$sel = 'selected="selected"';
@@ -740,7 +749,7 @@
 
 				$_SESSION["name"] = db_fetch_result($result, 0, "login");
 				$_SESSION["access_level"] = db_fetch_result($result, 0, "access_level");
-				$_SESSION["csrf_token"] = uniqid(rand(), true);
+				$_SESSION["csrf_token"] = uniqid_short();
 
 				db_query("UPDATE ttrss_users SET last_login = NOW() WHERE id = " .
 					$_SESSION["uid"]);
@@ -770,7 +779,7 @@
 			$_SESSION["auth_module"] = false;
 
 			if (!$_SESSION["csrf_token"]) {
-				$_SESSION["csrf_token"] = uniqid(rand(), true);
+				$_SESSION["csrf_token"] = uniqid_short();
 			}
 
 			$_SESSION["ip_address"] = $_SERVER["REMOTE_ADDR"];
@@ -895,6 +904,15 @@
 		}
 	}
 
+	// is not utf8 clean
+	function truncate_middle($str, $max_len, $suffix = '&hellip;') {
+		if (strlen($str) > $max_len) {
+			return substr_replace($str, $suffix, $max_len / 2, mb_strlen($str) - $max_len);
+		} else {
+			return $str;
+		}
+	}
+
 	function convert_timestamp($timestamp, $source_tz, $dest_tz) {
 
 		try {
@@ -914,7 +932,7 @@
 	}
 
 	function make_local_datetime($timestamp, $long, $owner_uid = false,
-					$no_smart_dt = false) {
+					$no_smart_dt = false, $eta_min = false) {
 
 		if (!$owner_uid) $owner_uid = $_SESSION['uid'];
 		if (!$timestamp) $timestamp = '1970-01-01 0:00';
@@ -948,7 +966,7 @@
 
 		if (!$no_smart_dt) {
 			return smart_date_time($user_timestamp,
-				$tz_offset, $owner_uid);
+				$tz_offset, $owner_uid, $eta_min);
 		} else {
 			if ($long)
 				$format = get_pref('LONG_DATE_FORMAT', $owner_uid);
@@ -959,10 +977,12 @@
 		}
 	}
 
-	function smart_date_time($timestamp, $tz_offset = 0, $owner_uid = false) {
+	function smart_date_time($timestamp, $tz_offset = 0, $owner_uid = false, $eta_min = false) {
 		if (!$owner_uid) $owner_uid = $_SESSION['uid'];
 
-		if (date("Y.m.d", $timestamp) == date("Y.m.d", time() + $tz_offset)) {
+		if ($eta_min && time() + $tz_offset - $timestamp < 3600) {
+			return T_sprintf("%d min", date("i", time() + $tz_offset - $timestamp));
+		} else if (date("Y.m.d", $timestamp) == date("Y.m.d", time() + $tz_offset)) {
 			return date("G:i", $timestamp);
 		} else if (date("Y", $timestamp) == date("Y", time() + $tz_offset)) {
 			$format = get_pref('SHORT_DATE_FORMAT', $owner_uid);
@@ -1153,7 +1173,7 @@
 						db_query("UPDATE ttrss_user_entries
 							SET unread = false, last_read = NOW() WHERE ref_id IN
 								(SELECT id FROM
-									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 										AND owner_uid = $owner_uid AND unread = true AND feed_id IN
 											(SELECT id FROM ttrss_feeds WHERE $cat_qpart) AND $date_qpart) as tmp)");
 
@@ -1170,7 +1190,7 @@
 					db_query("UPDATE ttrss_user_entries
 						SET unread = false, last_read = NOW() WHERE ref_id IN
 							(SELECT id FROM
-								(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+								(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 									AND owner_uid = $owner_uid AND unread = true AND feed_id = $feed AND $date_qpart) as tmp)");
 
 				} else if ($feed < 0 && $feed > LABEL_BASE_INDEX) { // special, like starred
@@ -1179,7 +1199,7 @@
 						db_query("UPDATE ttrss_user_entries
 							SET unread = false, last_read = NOW() WHERE ref_id IN
 								(SELECT id FROM
-									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 										AND owner_uid = $owner_uid AND unread = true AND marked = true AND $date_qpart) as tmp)");
 					}
 
@@ -1187,7 +1207,7 @@
 						db_query("UPDATE ttrss_user_entries
 							SET unread = false, last_read = NOW() WHERE ref_id IN
 								(SELECT id FROM
-									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 										AND owner_uid = $owner_uid AND unread = true AND published = true AND $date_qpart) as tmp)");
 					}
 
@@ -1205,7 +1225,7 @@
 						db_query("UPDATE ttrss_user_entries
 							SET unread = false, last_read = NOW() WHERE ref_id IN
 								(SELECT id FROM
-									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 										AND owner_uid = $owner_uid AND score >= 0 AND unread = true AND $date_qpart AND $match_part) as tmp)");
 					}
 
@@ -1213,7 +1233,7 @@
 						db_query("UPDATE ttrss_user_entries
 							SET unread = false, last_read = NOW() WHERE ref_id IN
 								(SELECT id FROM
-									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 										AND owner_uid = $owner_uid AND unread = true AND $date_qpart) as tmp)");
 					}
 
@@ -1224,7 +1244,7 @@
 					db_query("UPDATE ttrss_user_entries
 						SET unread = false, last_read = NOW() WHERE ref_id IN
 							(SELECT id FROM
-								(SELECT ttrss_entries.id FROM ttrss_entries, ttrss_user_entries, ttrss_user_labels2 WHERE ref_id = id
+								(SELECT DISTINCT ttrss_entries.id FROM ttrss_entries, ttrss_user_entries, ttrss_user_labels2 WHERE ref_id = id
 									AND label_id = '$label_id' AND ref_id = article_id
 									AND owner_uid = $owner_uid AND unread = true AND $date_qpart) as tmp)");
 
@@ -1236,7 +1256,7 @@
 				db_query("UPDATE ttrss_user_entries
 					SET unread = false, last_read = NOW() WHERE ref_id IN
 						(SELECT id FROM
-							(SELECT ttrss_entries.id FROM ttrss_entries, ttrss_user_entries, ttrss_tags WHERE ref_id = ttrss_entries.id
+							(SELECT DISTINCT ttrss_entries.id FROM ttrss_entries, ttrss_user_entries, ttrss_tags WHERE ref_id = ttrss_entries.id
 								AND post_int_id = int_id AND tag_name = '$feed'
 								AND ttrss_user_entries.owner_uid = $owner_uid AND unread = true AND $date_qpart) as tmp)");
 
@@ -1588,7 +1608,8 @@
 			FROM ttrss_labels2 LEFT JOIN ttrss_user_labels2 ON
 				(ttrss_labels2.id = label_id)
 				LEFT JOIN ttrss_user_entries AS u1 ON u1.ref_id = article_id
-				WHERE ttrss_labels2.owner_uid = $owner_uid GROUP BY ttrss_labels2.id,
+				WHERE ttrss_labels2.owner_uid = $owner_uid AND u1.owner_uid = $owner_uid
+				GROUP BY ttrss_labels2.id,
 					ttrss_labels2.caption");
 
 		while ($line = db_fetch_assoc($result)) {
@@ -1743,7 +1764,7 @@
 			$feed_id = db_fetch_result($result, 0, "id");
 
 			if ($feed_id) {
-				update_rss_feed($feed_id, true);
+				set_basic_feed_info($feed_id);
 			}
 
 			return array("code" => 1);
@@ -1994,6 +2015,10 @@
 		} else {
 			return $id;
 		}
+	}
+
+	function uniqid_short() {
+		return uniqid(base_convert(rand(), 10, 36));
 	}
 
 	// TODO: less dumb splitting
