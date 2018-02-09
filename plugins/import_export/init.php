@@ -15,6 +15,10 @@ class Import_Export extends Plugin implements IHandler {
 			"fox");
 	}
 
+	private function bool_to_sql_bool($s) {
+		return $s ? 'true' : 'false';
+	}
+
 	function xml_import($args) {
 
 		$filename = $args['xml_import'];
@@ -91,6 +95,9 @@ class Import_Export extends Plugin implements IHandler {
 		return in_array($method, array("exportget"));
 	}
 
+	/**
+	 * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+	 */
 	function before($method) {
 		return $_SESSION["uid"] != false;
 	}
@@ -99,6 +106,9 @@ class Import_Export extends Plugin implements IHandler {
 		return true;
 	}
 
+	/**
+	 * @SuppressWarnings(unused)
+	 */
 	function exportget() {
 		$exportname = CACHE_DIR . "/export/" .
 			sha1($_SESSION['uid'] . $_SESSION['login']) . ".xml";
@@ -348,8 +358,8 @@ class Import_Export extends Plugin implements IHandler {
 
 							if (db_num_rows($result) == 0) {
 
-								$marked = bool_to_sql_bool(sql_bool_to_bool($article['marked']));
-								$published = bool_to_sql_bool(sql_bool_to_bool($article['published']));
+								$marked = $this->bool_to_sql_bool(sql_bool_to_bool($article['marked']));
+								$published = $this->bool_to_sql_bool(sql_bool_to_bool($article['published']));
 								$score = (int) $article['score'];
 
 								$tag_cache = $article['tag_cache'];
@@ -372,10 +382,10 @@ class Import_Export extends Plugin implements IHandler {
 								if (is_array($label_cache) && $label_cache["no-labels"] != 1) {
 									foreach ($label_cache as $label) {
 
-										label_create($label[1],
+										Labels::create($label[1],
 											$label[2], $label[3], $owner_uid);
 
-										label_add_article($ref_id, $label[1], $owner_uid);
+										Labels::add_article($ref_id, $label[1], $owner_uid);
 
 									}
 								}
@@ -425,34 +435,35 @@ class Import_Export extends Plugin implements IHandler {
 		print "<div style='text-align : center'>";
 
 		if ($_FILES['export_file']['error'] != 0) {
-			print_error(T_sprintf("Upload failed with error code %d",
-				$_FILES['export_file']['error']));
-			return;
-		}
+			print_error(T_sprintf("Upload failed with error code %d (%s)",
+				$_FILES['export_file']['error'],
+				get_upload_error_message($_FILES['export_file']['error'])));
+		} else {
 
-		$tmp_file = false;
+			$tmp_file = false;
 
-		if (is_uploaded_file($_FILES['export_file']['tmp_name'])) {
-			$tmp_file = tempnam(CACHE_DIR . '/upload', 'export');
+			if (is_uploaded_file($_FILES['export_file']['tmp_name'])) {
+				$tmp_file = tempnam(CACHE_DIR . '/upload', 'export');
 
-			$result = move_uploaded_file($_FILES['export_file']['tmp_name'],
-				$tmp_file);
+				$result = move_uploaded_file($_FILES['export_file']['tmp_name'],
+					$tmp_file);
 
-			if (!$result) {
-				print_error(__("Unable to move uploaded file."));
+				if (!$result) {
+					print_error(__("Unable to move uploaded file."));
+					return;
+				}
+			} else {
+				print_error(__('Error: please upload OPML file.'));
 				return;
 			}
-		} else {
-			print_error(__('Error: please upload OPML file.'));
-			return;
-		}
 
-		if (is_file($tmp_file)) {
-			$this->perform_data_import($tmp_file, $_SESSION['uid']);
-			unlink($tmp_file);
-		} else {
-			print_error(__('No file uploaded.'));
-			return;
+			if (is_file($tmp_file)) {
+				$this->perform_data_import($tmp_file, $_SESSION['uid']);
+				unlink($tmp_file);
+			} else {
+				print_error(__('No file uploaded.'));
+				return;
+			}
 		}
 
 		print "<button dojoType=\"dijit.form.Button\"
@@ -468,4 +479,3 @@ class Import_Export extends Plugin implements IHandler {
 	}
 
 }
-?>

@@ -1,6 +1,7 @@
 <?php
 class Af_Readability extends Plugin {
 
+	/* @var PluginHost $host */
 	private $host;
 
 	function about() {
@@ -14,7 +15,7 @@ class Af_Readability extends Plugin {
 	}
 
 	function save() {
-		$enable_share_anything = checkbox_to_sql_bool($_POST["enable_share_anything"]) == "true";
+		$enable_share_anything = checkbox_to_sql_bool($_POST["enable_share_anything"]);
 
 		$this->host->set($this, "enable_share_anything", $enable_share_anything);
 
@@ -36,7 +37,7 @@ class Af_Readability extends Plugin {
 	function hook_prefs_tab($args) {
 		if ($args != "prefFeeds") return;
 
-		print "<div dojoType=\"dijit.layout.AccordionPane\" title=\"".__('af_readability settings')."\">";
+		print "<div dojoType=\"dijit.layout.AccordionPane\" title=\"".__('Readability settings (af_readability)')."\">";
 
 		print_notice("Enable the plugin for specific feeds in the feed editor.");
 
@@ -56,20 +57,16 @@ class Af_Readability extends Plugin {
 			}
 			</script>";
 
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"op\" value=\"pluginhandler\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"method\" value=\"save\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"plugin\" value=\"af_readability\">";
+		print_hidden("op", "pluginhandler");
+		print_hidden("method", "save");
+		print_hidden("plugin", "af_readability");
 
 		$enable_share_anything = $this->host->get($this, "enable_share_anything");
-		$enable_share_anything_checked = $enable_share_anything ? "checked" : "";
 
-		print "<input dojoType=\"dijit.form.CheckBox\"
-			$enable_share_anything_checked name=\"enable_share_anything\" id=\"enable_share_anything\">
-			<label for=\"enable_share_anything\">" . __("Use Readability for pages shared via bookmarklet.") . "</label>";
+		print_checkbox("enable_share_anything", $enable_share_anything);
+		print "&nbsp;<label for=\"enable_share_anything\">" . __("Use Readability for pages shared via bookmarklet.") . "</label>";
 
-		print "<p><button dojoType=\"dijit.form.Button\" type=\"submit\">".
-				__("Save")."</button>";
-
+		print "<p>"; print_button("submit", __("Save"));
 		print "</form>";
 
 		$enabled_feeds = $this->host->get($this, "enabled_feeds");
@@ -87,7 +84,7 @@ class Af_Readability extends Plugin {
 					"<img src='images/pub_set.png'
 						style='vertical-align : middle'> <a href='#'
 						onclick='editFeed($f)'>".
-					getFeedTitle($f) . "</a></li>";
+					Feeds::getFeedTitle($f) . "</a></li>";
 			}
 			print "</ul>";
 		}
@@ -116,7 +113,7 @@ class Af_Readability extends Plugin {
 		$enabled_feeds = $this->host->get($this, "enabled_feeds");
 		if (!is_array($enabled_feeds)) $enabled_feeds = array();
 
-		$enable = checkbox_to_sql_bool($_POST["af_readability_enabled"]) == 'true';
+		$enable = checkbox_to_sql_bool($_POST["af_readability_enabled"]);
 		$key = array_search($feed_id, $enabled_feeds);
 
 		if ($enable) {
@@ -132,6 +129,9 @@ class Af_Readability extends Plugin {
 		$this->host->set($this, "enabled_feeds", $enabled_feeds);
 	}
 
+	/**
+	 * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+	 */
 	function hook_article_filter_action($article, $action) {
 		return $this->process_article($article);
 	}
@@ -150,20 +150,25 @@ class Af_Readability extends Plugin {
 			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 			curl_setopt($ch, CURLOPT_USERAGENT, SELF_USER_AGENT);
 
-			@$result = curl_exec($ch);
+			@curl_exec($ch);
 			$content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
 
 			if (strpos($content_type, "text/html") === FALSE)
 				return false;
+
+			$effective_url = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
 		}
 
 		$tmp = fetch_file_contents($url);
 
-		if ($tmp && mb_strlen($tmp) < 65535 * 4) {
+		if ($tmp && mb_strlen($tmp) < 1024 * 500) {
 			$tmpdoc = new DOMDocument("1.0", "UTF-8");
 
-			if (!$tmpdoc->loadHTML($tmp))
+			if (!$tmpdoc->loadHTML('<?xml encoding="utf-8" ?>\n' . $tmp))
 				return false;
+
+			if (!isset($effective_url))
+				$effective_url = $url;
 
 			if (strtolower($tmpdoc->encoding) != 'utf-8') {
 				$tmpxpath = new DOMXPath($tmpdoc);
@@ -185,13 +190,13 @@ class Af_Readability extends Plugin {
 				foreach ($entries as $entry) {
 					if ($entry->hasAttribute("href")) {
 						$entry->setAttribute("href",
-								rewrite_relative_url($url, $entry->getAttribute("href")));
+								rewrite_relative_url($effective_url, $entry->getAttribute("href")));
 
 					}
 
 					if ($entry->hasAttribute("src")) {
 						$entry->setAttribute("src",
-								rewrite_relative_url($url, $entry->getAttribute("src")));
+								rewrite_relative_url($effective_url, $entry->getAttribute("src")));
 
 					}
 
@@ -236,9 +241,10 @@ class Af_Readability extends Plugin {
 
 		foreach ($enabled_feeds as $feed) {
 
-			$result = db_query("SELECT id FROM ttrss_feeds WHERE id = '$feed' AND owner_uid = " . $_SESSION["uid"]);
+			$sth = $this->pdo->prepare("SELECT id FROM ttrss_feeds WHERE id = ? AND owner_uid = ?");
+			$sth->execute([$feed, $_SESSION['uid']]);
 
-			if (db_num_rows($result) != 0) {
+			if ($row = $sth->fetch()) {
 				array_push($tmp, $feed);
 			}
 		}
@@ -247,4 +253,3 @@ class Af_Readability extends Plugin {
 	}
 
 }
-?>

@@ -55,20 +55,20 @@
 <html>
 <head>
 	<title>Tiny Tiny RSS</title>
+    <meta name="viewport" content="initial-scale=1,width=device-width" />
 
 	<script type="text/javascript">
 		var __ttrss_version = "<?php echo VERSION ?>"
 	</script>
 
 	<?php echo stylesheet_tag("lib/dijit/themes/claro/claro.css"); ?>
-	<?php echo stylesheet_tag("css/layout.css"); ?>
 
 	<?php if ($_SESSION["uid"]) {
 		$theme = get_pref( "USER_CSS_THEME", $_SESSION["uid"], false);
 		if ($theme && theme_valid("$theme")) {
 			echo stylesheet_tag(get_theme_path($theme));
 		} else {
-			echo stylesheet_tag("themes/default.css");
+			echo stylesheet_tag("css/default.css");
 		}
 	}
 	?>
@@ -88,6 +88,16 @@
 	<link rel="shortcut icon" type="image/png" href="images/favicon.png"/>
 	<link rel="icon" type="image/png" sizes="72x72" href="images/favicon-72px.png" />
 
+	<script>
+		dojoConfig = {
+			async: true,
+			cacheBust: new Date(),
+			packages: [
+				{ name: "fox", location: "../../js" },
+			]
+		};
+	</script>
+
 	<?php
 	foreach (array("lib/prototype.js",
 				"lib/scriptaculous/scriptaculous.js?load=effects,controls",
@@ -104,12 +114,17 @@
 	<?php
 		require_once 'lib/jshrink/Minifier.php';
 
-		print get_minified_js(array("tt-rss",
-			"functions", "feedlist", "viewfeed", "FeedTree", "PluginHost"));
+		print get_minified_js(["tt-rss.js",
+			"functions.js", "feedlist.js", "viewfeed.js", "PluginHost.js"]);
 
 		foreach (PluginHost::getInstance()->get_plugins() as $n => $p) {
 			if (method_exists($p, "get_js")) {
+				echo "try {";
 				echo JShrink\Minifier::minify($p->get_js());
+				echo "} catch (e) {
+				 	console.warn('failed to initialize plugin JS: $n');
+					console.warn(e);
+				}";
 			}
 		}
 
@@ -127,7 +142,7 @@
 	</script>
 </head>
 
-<body id="ttrssMain" class="claro">
+<body class="claro ttrss_main">
 
 <div id="overlay" style="display : block">
 	<div id="overlay_inner">
@@ -157,16 +172,17 @@
 <div id="toolbar" dojoType="dijit.layout.ContentPane" region="top">
 	<div id="main-toolbar" dojoType="dijit.Toolbar">
 
+		<?php
+		foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_MAIN_TOOLBAR_BUTTON) as $p) {
+			echo $p->hook_main_toolbar_button();
+		}
+		?>
+
 		<form id="headlines-toolbar" action="" onsubmit='return false'>
 
 		</form>
 
 		<form id="main_toolbar_form" action="" onsubmit='return false'>
-
-		<button dojoType="dijit.form.Button" id="collapse_feeds_btn"
-			onclick="collapse_feedlist()"
-			title="<?php echo __('Collapse feedlist') ?>" style="display : none">
-			&lt;&lt;</button>
 
 		<select name="view_mode" title="<?php echo __('Show articles') ?>"
 			onchange="viewModeChanged()"
@@ -216,8 +232,7 @@
 
 			<button id="net-alert" dojoType="dijit.form.Button" style="display : none" disabled="true"
 				title="<?php echo __("Communication problem with server.") ?>">
-			<img
-				src="images/error.png" />
+				<img src="images/error.png" />
 			</button>
 
 			<div dojoType="dijit.form.DropDownButton">
@@ -262,7 +277,7 @@
 
 		<div id="floatingTitle" style="visibility : hidden"></div>
 
-		<div id="headlines-frame" dojoType="dijit.layout.ContentPane"
+		<div id="headlines-frame" dojoType="dijit.layout.ContentPane" tabindex="0"
 				onscroll="headlines_scroll_handler(this)" region="center">
 			<div id="headlinesInnerContainer">
 				<div class="whiteBox"><?php echo __('Loading, please wait...') ?></div>
