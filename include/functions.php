@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 133);
+	define('SCHEMA_VERSION', 134);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -11,6 +11,7 @@
 	$fetch_last_error_code = false;
 	$fetch_last_content_type = false;
 	$fetch_last_error_content = false; // curl only for the time being
+	$fetch_effective_url = false;
 	$fetch_curl_used = false;
 	$suppress_debugging = false;
 
@@ -55,6 +56,10 @@
 	// default sleep interval between feed updates (sec)
 	define_default('MIN_CACHE_FILE_SIZE', 1024);
 	// do not cache files smaller than that (bytes)
+	define_default('MAX_CACHE_FILE_SIZE', 64*1024*1024);
+	// do not cache files larger than that (bytes)
+	define_default('MAX_DOWNLOAD_FILE_SIZE', 16*1024*1024);
+	// do not download general files larger than that (bytes)
 	define_default('CACHE_MAX_DAYS', 7);
 	// max age in days for various automatically cached (temporary) files
 	define_default('MAX_CONDITIONAL_INTERVAL', 3600*12);
@@ -316,6 +321,7 @@
 		}
 	}
 
+	// TODO: max_size currently only works for CURL transfers
 	// TODO: multiple-argument way is deprecated, first parameter is a hash now
 	function fetch_file_contents($options /* previously: 0: $url , 1: $type = false, 2: $login = false, 3: $pass = false,
 				4: $post_query = false, 5: $timeout = false, 6: $timestamp = 0, 7: $useragent = false*/) {
@@ -325,6 +331,7 @@
 		global $fetch_last_error_content;
 		global $fetch_last_content_type;
 		global $fetch_last_modified;
+		global $fetch_effective_url;
 		global $fetch_curl_used;
 
 		$fetch_last_error = false;
@@ -333,6 +340,7 @@
 		$fetch_last_content_type = "";
 		$fetch_curl_used = false;
 		$fetch_last_modified = "";
+		$fetch_effective_url = "";
 
 		if (!is_array($options)) {
 
@@ -367,6 +375,8 @@
 		$last_modified = isset($options["last_modified"]) ? $options["last_modified"] : "";
 		$useragent = isset($options["useragent"]) ? $options["useragent"] : false;
 		$followlocation = isset($options["followlocation"]) ? $options["followlocation"] : true;
+		$max_size = isset($options["max_size"]) ? $options["max_size"] : MAX_DOWNLOAD_FILE_SIZE; // in bytes
+		$http_accept = isset($options["http_accept"]) ? $options["http_accept"] : false;
 
 		$url = ltrim($url, ' ');
 		$url = str_replace(' ', '%20', $url);
@@ -380,10 +390,16 @@
 
 			$ch = curl_init($url);
 
-			if ($last_modified && !$post_query) {
-				curl_setopt($ch, CURLOPT_HTTPHEADER,
-					array("If-Modified-Since: $last_modified"));
-			}
+			$curl_http_headers = [];
+
+			if ($last_modified && !$post_query)
+				array_push($curl_http_headers, "If-Modified-Since: $last_modified");
+
+			if ($http_accept)
+				array_push($curl_http_headers, "Accept: " . $http_accept);
+
+			if (count($curl_http_headers) > 0)
+				curl_setopt($ch, CURLOPT_HTTPHEADER, $curl_http_headers);
 
 			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout ? $timeout : FILE_FETCH_CONNECT_TIMEOUT);
 			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout ? $timeout : FILE_FETCH_TIMEOUT);
@@ -397,6 +413,20 @@
 				SELF_USER_AGENT);
 			curl_setopt($ch, CURLOPT_ENCODING, "");
 			//curl_setopt($ch, CURLOPT_REFERER, $url);
+
+			if ($max_size) {
+				curl_setopt($ch, CURLOPT_NOPROGRESS, false);
+				curl_setopt($ch, CURLOPT_BUFFERSIZE, 16384); // needed to get 5 arguments in progress function?
+
+				// holy shit closures in php
+				// download & upload are *expected* sizes respectively, could be zero
+				curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, function($curl_handle, $download_size, $downloaded, $upload_size, $uploaded) use( &$max_size) {
+					//_debug("[curl progressfunction] $downloaded $max_size");
+
+					return ($downloaded > $max_size) ? 1 : 0; // if max size is set, abort when exceeding it
+				});
+
+			}
 
 			if (!ini_get("open_basedir")) {
 				curl_setopt($ch, CURLOPT_COOKIEJAR, "/dev/null");
@@ -443,6 +473,8 @@
 			$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 			$fetch_last_content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
 
+			$fetch_effective_url = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+
 			$fetch_last_error_code = $http_code;
 
 			if ($http_code != 200 || $type && strpos($fetch_last_content_type, "$type") === false) {
@@ -485,15 +517,20 @@
 
 			 $context_options = array(
 				  'http' => array(
+						'header' => array(
+							'Connection: close'
+						),
 						'method' => 'GET',
 						'ignore_errors' => true,
 						'timeout' => $timeout ? $timeout : FILE_FETCH_TIMEOUT,
 						'protocol_version'=> 1.1)
 				  );
 
-			if (!$post_query && $last_modified) {
-				$context_options['http']['header'] = "If-Modified-Since: $last_modified\r\n";
-			}
+			if (!$post_query && $last_modified)
+				array_push($context_options['http']['header'], "If-Modified-Since: $last_modified");
+
+			if ($http_accept)
+				array_push($context_options['http']['header'], "Accept: $http_accept");
 
 			if (defined('_HTTP_PROXY')) {
 				$context_options['http']['request_fulluri'] = true;
@@ -503,6 +540,8 @@
 			$context = stream_context_create($context_options);
 
 			$old_error = error_get_last();
+
+			$fetch_effective_url = $url;
 
 			$data = @file_get_contents($url, false, $context);
 
@@ -519,6 +558,8 @@
 							// e.g. if we were being redirected -- last one is the right one
 						} else if ($key == 'last-modified') {
 							$fetch_last_modified = $value;
+						} else if ($key == 'location') {
+							$fetch_effective_url = $value;
 						}
 					}
 
@@ -605,7 +646,7 @@
 		$profile = $profile ? $profile : null;
 
 		$u_sth = $pdo->prepare("SELECT pref_name
-			FROM ttrss_user_prefs WHERE owner_uid = :uid AND 
+			FROM ttrss_user_prefs WHERE owner_uid = :uid AND
 				(profile = :profile OR (:profile IS NULL AND profile IS NULL))");
 		$u_sth->execute([':uid' => $uid, ':profile' => $profile]);
 
@@ -836,14 +877,14 @@
 
 				/* cleanup ccache */
 
-				$sth = $pdo->prepare("DELETE FROM ttrss_counters_cache WHERE owner_uid = ? 
+				$sth = $pdo->prepare("DELETE FROM ttrss_counters_cache WHERE owner_uid = ?
 					AND
 						(SELECT COUNT(id) FROM ttrss_feeds WHERE
 							ttrss_feeds.id = feed_id) = 0");
 
 				$sth->execute([$_SESSION['uid']]);
 
-				$sth = $pdo->prepare("DELETE FROM ttrss_cat_counters_cache WHERE owner_uid = ? 
+				$sth = $pdo->prepare("DELETE FROM ttrss_cat_counters_cache WHERE owner_uid = ?
 					AND
 						(SELECT COUNT(id) FROM ttrss_feed_categories WHERE
 							ttrss_feed_categories.id = feed_id) = 0");
@@ -1377,7 +1418,7 @@
 		$search_query_leftover = array();
 
 		$pdo = Db::pdo();
-		
+
 		if ($search_language)
 			$search_language = $pdo->quote(mb_strtolower($search_language));
 		else
@@ -1587,6 +1628,9 @@
 			if ($entry->nodeName == 'img') {
 				$entry->setAttribute('referrerpolicy', 'no-referrer');
 
+				$entry->removeAttribute('width');
+				$entry->removeAttribute('height');
+
 				if ($entry->hasAttribute('src')) {
 					$is_https_url = parse_url($entry->getAttribute('src'), PHP_URL_SCHEME) === 'https';
 
@@ -1639,7 +1683,7 @@
 			}
 		}
 
-		$allowed_elements = array('a', 'address', 'acronym', 'audio', 'article', 'aside',
+		$allowed_elements = array('a', 'abbr', 'address', 'acronym', 'audio', 'article', 'aside',
 			'b', 'bdi', 'bdo', 'big', 'blockquote', 'body', 'br',
 			'caption', 'cite', 'center', 'code', 'col', 'colgroup',
 			'data', 'dd', 'del', 'details', 'description', 'dfn', 'div', 'dl', 'font',
@@ -1753,11 +1797,8 @@
 	}
 
 	function tag_is_valid($tag) {
-		if ($tag == '') return false;
-		if (is_numeric($tag)) return false;
-		if (mb_strlen($tag) > 250) return false;
-
-		if (!$tag) return false;
+		if (!$tag || is_numeric($tag) || mb_strlen($tag) > 250)
+			return false;
 
 		return true;
 	}
@@ -1967,7 +2008,7 @@
 		}
 
 		$sth = $pdo->prepare("SELECT id FROM ttrss_feed_categories
-				WHERE (parent_cat = :parent OR (:parent IS NULL AND parent_cat IS NULL)) 
+				WHERE (parent_cat = :parent OR (:parent IS NULL AND parent_cat IS NULL))
 				AND title = :title AND owner_uid = :uid");
 		$sth->execute([':parent' => $parent_cat_id, ':title' => $feed_cat, ':uid' => $_SESSION['uid']]);
 
@@ -2345,7 +2386,6 @@
 	}
 
 	function get_minified_js($files) {
-		require_once 'lib/jshrink/Minifier.php';
 
 		$rv = '';
 

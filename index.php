@@ -110,13 +110,15 @@
 	} ?>
 
 	<script type="text/javascript">
+		'use strict';
 		require({cache:{}});
 	<?php
-		require_once 'lib/jshrink/Minifier.php';
-
 		print get_minified_js(["tt-rss.js",
 			"functions.js", "feedlist.js", "viewfeed.js", "PluginHost.js"]);
-
+	?>
+	</script>
+	<script type="text/javascript">
+	<?php
 		foreach (PluginHost::getInstance()->get_plugins() as $n => $p) {
 			if (method_exists($p, "get_js")) {
 				echo "try {";

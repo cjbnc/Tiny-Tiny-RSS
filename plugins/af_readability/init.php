@@ -1,4 +1,7 @@
 <?php
+use andreskrey\Readability\Readability;
+use andreskrey\Readability\Configuration;
+
 class Af_Readability extends Plugin {
 
 	/* @var PluginHost $host */
@@ -26,6 +29,10 @@ class Af_Readability extends Plugin {
 	{
 		$this->host = $host;
 
+		if (version_compare(PHP_VERSION, '5.6.0', '<')) {
+			return;
+		}
+
 		$host->add_hook($host::HOOK_ARTICLE_FILTER, $this);
 		$host->add_hook($host::HOOK_PREFS_TAB, $this);
 		$host->add_hook($host::HOOK_PREFS_EDIT_FEED, $this);
@@ -38,6 +45,10 @@ class Af_Readability extends Plugin {
 		if ($args != "prefFeeds") return;
 
 		print "<div dojoType=\"dijit.layout.AccordionPane\" title=\"".__('Readability settings (af_readability)')."\">";
+
+		if (version_compare(PHP_VERSION, '5.6.0', '<')) {
+			print_error("This plugin requires PHP version 5.6.");
+		}
 
 		print_notice("Enable the plugin for specific feeds in the feed editor.");
 
@@ -137,38 +148,18 @@ class Af_Readability extends Plugin {
 	}
 
 	public function extract_content($url) {
-		if (!class_exists("Readability")) require_once(dirname(dirname(__DIR__)). "/lib/readability/Readability.php");
+		global $fetch_effective_url;
 
-		if (!defined('NO_CURL') && function_exists('curl_init') && !ini_get("open_basedir")) {
-
-			$ch = curl_init($url);
-
-			curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-			curl_setopt($ch, CURLOPT_HEADER, true);
-			curl_setopt($ch, CURLOPT_NOBODY, true);
-			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-			curl_setopt($ch, CURLOPT_USERAGENT, SELF_USER_AGENT);
-
-			@curl_exec($ch);
-			$content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-
-			if (strpos($content_type, "text/html") === FALSE)
-				return false;
-
-			$effective_url = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
-		}
-
-		$tmp = fetch_file_contents($url);
+		$tmp = fetch_file_contents([
+			"url" => $url,
+			"http_accept" => "text/*",
+			"type" => "text/html"]);
 
 		if ($tmp && mb_strlen($tmp) < 1024 * 500) {
 			$tmpdoc = new DOMDocument("1.0", "UTF-8");
 
 			if (!$tmpdoc->loadHTML('<?xml encoding="utf-8" ?>\n' . $tmp))
 				return false;
-
-			if (!isset($effective_url))
-				$effective_url = $url;
 
 			if (strtolower($tmpdoc->encoding) != 'utf-8') {
 				$tmpxpath = new DOMXPath($tmpdoc);
@@ -180,30 +171,35 @@ class Af_Readability extends Plugin {
 				$tmp = $tmpdoc->saveHTML();
 			}
 
-			$r = new Readability($tmp, $url);
+			$r = new Readability(new Configuration());
 
-			if ($r->init()) {
-				$tmpxpath = new DOMXPath($r->dom);
+			try {
+				if ($r->parse($tmp)) {
 
-				$entries = $tmpxpath->query('(//a[@href]|//img[@src])');
+					$tmpxpath = new DOMXPath($r->getDOMDOcument());
+					$entries = $tmpxpath->query('(//a[@href]|//img[@src])');
 
-				foreach ($entries as $entry) {
-					if ($entry->hasAttribute("href")) {
-						$entry->setAttribute("href",
-								rewrite_relative_url($effective_url, $entry->getAttribute("href")));
+					foreach ($entries as $entry) {
+						if ($entry->hasAttribute("href")) {
+							$entry->setAttribute("href",
+									rewrite_relative_url($fetch_effective_url, $entry->getAttribute("href")));
 
+						}
+
+						if ($entry->hasAttribute("src")) {
+							$entry->setAttribute("src",
+									rewrite_relative_url($fetch_effective_url, $entry->getAttribute("src")));
+
+						}
 					}
 
-					if ($entry->hasAttribute("src")) {
-						$entry->setAttribute("src",
-								rewrite_relative_url($effective_url, $entry->getAttribute("src")));
-
-					}
-
+					return $r->getContent();
 				}
 
-				return $r->articleContent->innerHTML;
+			} catch (ParseException $e) {
+				return false;
 			}
+
 		}
 
 		return false;
@@ -213,7 +209,10 @@ class Af_Readability extends Plugin {
 
 		$extracted_content = $this->extract_content($article["link"]);
 
-		if ($extracted_content) {
+		# let's see if there's anything of value in there
+		$content_test = trim(strip_tags(sanitize($extracted_content)));
+
+		if ($content_test) {
 			$article["content"] = $extracted_content;
 		}
 

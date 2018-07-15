@@ -147,8 +147,8 @@ class Pref_Prefs extends Handler_Protected {
 
 		$_SESSION["prefs_op_result"] = "reset-to-defaults";
 
-		$sth = $this->pdo->query("DELETE FROM ttrss_user_prefs
-			WHERE (profile = :profile OR (:profile IS NULL AND profile IS NULL)) 
+		$sth = $this->pdo->prepare("DELETE FROM ttrss_user_prefs
+			WHERE (profile = :profile OR (:profile IS NULL AND profile IS NULL))
 				AND owner_uid = :uid");
 		$sth->execute([":profile" => $_SESSION['profile'], ":uid" => $_SESSION['uid']]);
 
@@ -849,9 +849,6 @@ class Pref_Prefs extends Handler_Protected {
 	}
 
 	function otpqrcode() {
-		require_once "lib/otphp/vendor/base32.php";
-		require_once "lib/otphp/lib/otp.php";
-		require_once "lib/otphp/lib/totp.php";
 		require_once "lib/phpqrcode/phpqrcode.php";
 
 		$sth = $this->pdo->prepare("SELECT login,salt,otp_enabled
@@ -861,7 +858,7 @@ class Pref_Prefs extends Handler_Protected {
 
 		if ($row = $sth->fetch()) {
 
-			$base32 = new Base32();
+			$base32 = new \OTPHP\Base32();
 
 			$login = $row["login"];
 			$otp_enabled = sql_bool_to_bool($row["otp_enabled"]);
@@ -877,9 +874,6 @@ class Pref_Prefs extends Handler_Protected {
 	}
 
 	function otpenable() {
-		require_once "lib/otphp/vendor/base32.php";
-		require_once "lib/otphp/lib/otp.php";
-		require_once "lib/otphp/lib/totp.php";
 
 		$password = clean($_REQUEST["password"]);
 		$otp = clean($_REQUEST["otp"]);
@@ -895,7 +889,7 @@ class Pref_Prefs extends Handler_Protected {
 
 			if ($row = $sth->fetch()) {
 
-				$base32 = new Base32();
+				$base32 = new \OTPHP\Base32();
 
 				$secret = $base32->encode(sha1($row["salt"]));
 				$topt = new \OTPHP\TOTP($secret);
@@ -903,7 +897,7 @@ class Pref_Prefs extends Handler_Protected {
 				$otp_check = $topt->now();
 
 				if ($otp == $otp_check) {
-					$sth = $this->pdo->prepare("UPDATE ttrss_users 
+					$sth = $this->pdo->prepare("UPDATE ttrss_users
 					SET otp_enabled = true WHERE id = ?");
 
 					$sth->execute([$_SESSION['uid']]);

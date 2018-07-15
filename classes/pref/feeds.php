@@ -565,6 +565,18 @@ class Pref_Feeds extends Handler_Protected {
 					'dojoType="dijit.form.Select"');
 			}
 
+			/* Site URL  */
+
+			$site_url = htmlspecialchars($row["site_url"]);
+
+			print "<hr/>";
+
+			print __('Site URL:') . " ";
+			print "<input dojoType=\"dijit.form.ValidationTextBox\" required=\"1\"
+			placeHolder=\"".__("Site URL")."\"
+			regExp='^(http|https)://.*' style=\"width : 15em\"
+			name=\"site_url\" value=\"$site_url\">";
+
 			/* FTS Stemming Language */
 
 			if (DB_TYPE == "pgsql") {
@@ -622,7 +634,6 @@ class Pref_Feeds extends Handler_Protected {
 			placeHolder=\"".__("Login")."\"
 			autocomplete=\"new-password\"
 			name=\"auth_login\" value=\"$auth_login\"><hr/>";
-
 
 			print "<input dojoType=\"dijit.form.TextBox\" type=\"password\" name=\"auth_pass\"
 			autocomplete=\"new-password\"
@@ -929,6 +940,7 @@ class Pref_Feeds extends Handler_Protected {
 
 		$feed_title = trim(clean($_POST["title"]));
 		$feed_url = trim(clean($_POST["feed_url"]));
+		$site_url = trim(clean($_POST["site_url"]));
 		$upd_intl = (int) clean($_POST["update_interval"]);
 		$purge_intl = (int) clean($_POST["purge_interval"]);
 		$feed_id = (int) clean($_POST["id"]); /* editSave */
@@ -957,17 +969,17 @@ class Pref_Feeds extends Handler_Protected {
 				$auth_pass = '';
 			}
 
-			$sth = $this->pdo->prepare("SELECT feed_url FROM ttrss_feeds WHERE id = ?");
+			/* $sth = $this->pdo->prepare("SELECT feed_url FROM ttrss_feeds WHERE id = ?");
 			$sth->execute([$feed_id]);
-			$row = $sth->fetch();
-			$orig_feed_url = $row["feed_url"];
+			$row = $sth->fetch();$orig_feed_url = $row["feed_url"];
 
-			$reset_basic_info = $orig_feed_url != $feed_url;
+			$reset_basic_info = $orig_feed_url != $feed_url; */
 
 			$sth = $this->pdo->prepare("UPDATE ttrss_feeds SET
 				cat_id = :cat_id,
 				title = :title, 
 				feed_url = :feed_url,
+				site_url = :site_url,
 				update_interval = :upd_intl,
 				purge_interval = :purge_intl,
 				auth_login = :auth_login,
@@ -985,6 +997,7 @@ class Pref_Feeds extends Handler_Protected {
 			$sth->execute([":title" => $feed_title,
 					":cat_id" => $cat_id ? $cat_id : null,
 					":feed_url" => $feed_url,
+					":site_url" => $site_url,
 					":upd_intl" => $upd_intl,
 					":purge_intl" => $purge_intl,
 					":auth_login" => $auth_login,
@@ -999,9 +1012,9 @@ class Pref_Feeds extends Handler_Protected {
 					":id" => $feed_id,
 					":uid" => $_SESSION['uid']]);
 
-			if ($reset_basic_info) {
+/*			if ($reset_basic_info) {
 				RSSUtils::set_basic_feed_info($feed_id);
-			}
+			} */
 
 			PluginHost::getInstance()->run_hooks(PluginHost::HOOK_PREFS_SAVE_FEED,
 				"hook_prefs_save_feed", $feed_id);
@@ -1224,6 +1237,8 @@ class Pref_Feeds extends Handler_Protected {
 		<img src='images/indicator_tiny.gif'>".
 		 __("Loading, please wait...")."</div>";
 
+		$auto_expand = $feed_search != "" ? "true" : "false";
+
 		print "<div dojoType=\"fox.PrefFeedStore\" jsId=\"feedStore\"
 			url=\"backend.php?op=pref-feeds&method=getfeedtree\">
 		</div>
@@ -1234,7 +1249,7 @@ class Pref_Feeds extends Handler_Protected {
 		<div dojoType=\"fox.PrefFeedTree\" id=\"feedTree\"
 			dndController=\"dijit.tree.dndSource\"
 			betweenThreshold=\"5\"
-			autoExpand='false'
+			autoExpand='$auto_expand'
 			model=\"feedModel\" openOnClick=\"false\">
 		<script type=\"dojo/method\" event=\"onClick\" args=\"item\">
 			var id = String(item.id);
@@ -1307,25 +1322,6 @@ class Pref_Feeds extends Handler_Protected {
 			"hook_prefs_tab_section", "prefFeedsOPML");
 
 		print "</div>"; # pane
-
-		if (strpos($_SERVER['HTTP_USER_AGENT'], "Firefox") !== false) {
-
-			print "<div dojoType=\"dijit.layout.AccordionPane\" title=\"".__('Firefox integration')."\">";
-
-			print_notice(__('This Tiny Tiny RSS site can be used as a Firefox Feed Reader by clicking the link below.'));
-
-			print "<p>";
-
-			print "<button onclick='window.navigator.registerContentHandler(" .
-                      "\"application/vnd.mozilla.maybe.feed\", " .
-                      "\"" . $this->subscribe_to_feed_url() . "\", " . " \"Tiny Tiny RSS\")'>" .
-							 __('Click here to register this site as a feed reader.') .
-				"</button>";
-
-			print "</p>";
-
-			print "</div>"; # pane
-		}
 
 		print "<div dojoType=\"dijit.layout.AccordionPane\" title=\"".__('Published & shared articles / Generated feeds')."\">";
 

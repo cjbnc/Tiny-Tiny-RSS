@@ -91,7 +91,7 @@ class Af_Comics extends Plugin {
 			return $feed_data;
 
 		if (preg_match('#^https?://(?:feeds\.feedburner\.com/uclick|www\.gocomics\.com)/([-a-z0-9]+)$#i', $fetch_url, $comic)) {
-			$site_url = 'http://www.gocomics.com/' . $comic[1];
+			$site_url = 'https://www.gocomics.com/' . $comic[1];
 
 			$article_link = $site_url . date('/Y/m/d');
 
@@ -131,7 +131,7 @@ class Af_Comics extends Plugin {
 								$node->setAttribute("srcset", $node->getAttribute("data-srcset"));
 								$node->removeAttribute("data-srcset");
 							} elseif ($node->hasAttribute("src")) {
-								$node->remoteAttribute("srcset");
+								$node->removeAttribute("srcset");
 							}
 						}
 

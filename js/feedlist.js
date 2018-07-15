@@ -124,7 +124,6 @@ function viewfeed(params) {
 
 	if (!background) {
 		if (_search_query) {
-			force_nocache = true;
 			query = query + "&" + _search_query;
 			//_search_query = false;
 		}
@@ -164,7 +163,7 @@ function viewfeed(params) {
 		window.open("backend.php" + query + "&debug=1&csrf_token=" + getInitParam("csrf_token"));
 	}
 
-	timeout_ms = can_wait ? 250 : 0;
+	var timeout_ms = can_wait ? 250 : 0;
 	_viewfeed_timeout = setTimeout(function() {
 
 		new Ajax.Request("backend.php", {
