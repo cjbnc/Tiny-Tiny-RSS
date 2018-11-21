@@ -71,7 +71,7 @@ class Pref_Feeds extends Handler_Protected {
 		$fsth = $this->pdo->prepare("SELECT id, title, last_error,
 			".SUBSTRING_FOR_DATE."(last_updated,1,19) AS last_updated, update_interval
 			FROM ttrss_feeds
-			WHERE cat_id = :cat AND 
+			WHERE cat_id = :cat AND
 			owner_uid = :uid AND
 			(:search = '' OR (LOWER(title) LIKE :search OR LOWER(feed_url) LIKE :search))
 			ORDER BY order_id, title");
@@ -238,9 +238,9 @@ class Pref_Feeds extends Handler_Protected {
 			$cat['child_unread'] = 0;
 
 			$fsth = $this->pdo->prepare("SELECT id, title,last_error,
-				".SUBSTRING_FOR_DATE."(last_updated,1,19) AS last_updated, update_interval				
+				".SUBSTRING_FOR_DATE."(last_updated,1,19) AS last_updated, update_interval
 				FROM ttrss_feeds
-				WHERE cat_id IS NULL AND 
+				WHERE cat_id IS NULL AND
 				owner_uid = :uid AND
 				(:search = '' OR (LOWER(title) LIKE :search OR LOWER(feed_url) LIKE :search))
 				ORDER BY order_id, title");
@@ -513,8 +513,6 @@ class Pref_Feeds extends Handler_Protected {
 			print '<div dojoType="dijit.layout.TabContainer" style="height : 450px">
         		<div dojoType="dijit.layout.ContentPane" title="'.__('General').'">';
 
-			$auth_pass_encrypted = $row["auth_pass_encrypted"];
-
 			$title = htmlspecialchars($row["title"]);
 
 			print_hidden("id", "$feed_id");
@@ -615,14 +613,8 @@ class Pref_Feeds extends Handler_Protected {
 			print "</div>";
 
 			$auth_login = htmlspecialchars($row["auth_login"]);
-			$auth_pass = $row["auth_pass"];
+			$auth_pass = htmlspecialchars($row["auth_pass"]);
 
-			if ($auth_pass_encrypted && function_exists("mcrypt_decrypt")) {
-				require_once "crypt.php";
-				$auth_pass = decrypt_string($auth_pass);
-			}
-
-			$auth_pass = htmlspecialchars($auth_pass);
 			$auth_enabled = $auth_login !== '' || $auth_pass !== '';
 
 			$auth_style = $auth_enabled ? '' : 'display: none';
@@ -705,7 +697,7 @@ class Pref_Feeds extends Handler_Protected {
 			print "<hr/><input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" id=\"hide_images\"
 		name=\"hide_images\"
 			$checked>&nbsp;<label for=\"hide_images\">".
-				__('Do not embed images')."</label>";
+				__('Do not embed media')."</label>";
 
 			$cache_images = $row["cache_images"];
 
@@ -753,7 +745,7 @@ class Pref_Feeds extends Handler_Protected {
 			</label>
 			<input type=\"hidden\" name=\"op\" value=\"pref-feeds\">
 			<input type=\"hidden\" name=\"feed_id\" value=\"$feed_id\">
-			<input type=\"hidden\" name=\"method\" value=\"uploadicon\">			
+			<input type=\"hidden\" name=\"method\" value=\"uploadicon\">
 			<button class=\"\" dojoType=\"dijit.form.Button\" onclick=\"return uploadFeedIcon();\"
 				type=\"submit\">".__('Replace')."</button>
 			<button class=\"btn-danger\" dojoType=\"dijit.form.Button\" onclick=\"return removeFeedIcon($feed_id);\"
@@ -896,7 +888,7 @@ class Pref_Feeds extends Handler_Protected {
 			name=\"hide_images\"
 			dojoType=\"dijit.form.CheckBox\">&nbsp;<label class='insensitive' id=\"hide_images_l\"
 			for=\"hide_images\">".
-		__('Do not embed images')."</label>";
+		__('Do not embed media')."</label>";
 
 		print "&nbsp;"; $this->batch_edit_cbox("hide_images", "hide_images_l");
 
@@ -977,7 +969,7 @@ class Pref_Feeds extends Handler_Protected {
 
 			$sth = $this->pdo->prepare("UPDATE ttrss_feeds SET
 				cat_id = :cat_id,
-				title = :title, 
+				title = :title,
 				feed_url = :feed_url,
 				site_url = :site_url,
 				update_interval = :upd_intl,

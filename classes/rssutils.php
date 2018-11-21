@@ -50,8 +50,8 @@ class RSSUtils {
 			if (!$tmph->fetch()) {
 
 				$tmph = $pdo->prepare("INSERT INTO ttrss_feedbrowser_cache
-					(feed_url, site_url, title, subscribers) 
-					VALUES 
+					(feed_url, site_url, title, subscribers)
+					VALUES
 					(?, ?, ?, ?)");
 
 				$tmph->execute([$feed_url, $site_url, $title, $subscribers]);
@@ -187,7 +187,19 @@ class RSSUtils {
 					array_push($batch_owners, $tline["owner_uid"]);
 
 				$fstarted = microtime(true);
-				RSSUtils::update_rss_feed($tline["id"], true, false);
+
+				try {
+					RSSUtils::update_rss_feed($tline["id"], true, false);
+				} catch (PDOException $e) {
+					Logger::get()->log_error(E_USER_NOTICE, $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString());
+
+					try {
+						$pdo->rollback();
+					} catch (PDOException $e) {
+						// it doesn't matter if there wasn't actually anything to rollback, PDO Exception can be
+						// thrown outside of an active transaction during feed update
+					}
+				}
 				_debug_suppress(false);
 
 				_debug(sprintf("    %.4f (sec)", microtime(true) - $fstarted));
@@ -218,24 +230,15 @@ class RSSUtils {
 
 		$pdo = Db::pdo();
 
-		$sth = $pdo->prepare("SELECT owner_uid,feed_url,auth_pass,auth_login,auth_pass_encrypted
+		$sth = $pdo->prepare("SELECT owner_uid,feed_url,auth_pass,auth_login
 				FROM ttrss_feeds WHERE id = ?");
 		$sth->execute([$feed]);
 
 		if ($row = $sth->fetch()) {
 
 			$owner_uid = $row["owner_uid"];
-
-			$auth_pass_encrypted = $row["auth_pass_encrypted"];
-
 			$auth_login = $row["auth_login"];
 			$auth_pass = $row["auth_pass"];
-
-			if ($auth_pass_encrypted && function_exists("mcrypt_decrypt")) {
-				require_once "crypt.php";
-				$auth_pass = decrypt_string($auth_pass);
-			}
-
 			$fetch_url = $row["feed_url"];
 
 			$pluginhost = new PluginHost();
@@ -337,17 +340,16 @@ class RSSUtils {
 		$sth = $pdo->prepare("SELECT id,update_interval,auth_login,
 			feed_url,auth_pass,cache_images,
 			mark_unread_on_update, owner_uid,
-			auth_pass_encrypted, feed_language, 
-			last_modified, 
-			".SUBSTRING_FOR_DATE."(last_unconditional, 1, 19) AS last_unconditional			
+			auth_pass_encrypted, feed_language,
+			last_modified,
+			".SUBSTRING_FOR_DATE."(last_unconditional, 1, 19) AS last_unconditional
 			FROM ttrss_feeds WHERE id = ?");
 		$sth->execute([$feed]);
-		
+
 		if ($row = $sth->fetch()) {
 
 			$owner_uid = $row["owner_uid"];
 			$mark_unread_on_update = $row["mark_unread_on_update"];
-			$auth_pass_encrypted = $row["auth_pass_encrypted"];
 
 			$sth = $pdo->prepare("UPDATE ttrss_feeds SET last_update_started = NOW()
 				WHERE id = ?");
@@ -355,16 +357,11 @@ class RSSUtils {
 
 			$auth_login = $row["auth_login"];
 			$auth_pass = $row["auth_pass"];
-
-			if ($auth_pass_encrypted && function_exists("mcrypt_decrypt")) {
-				require_once "crypt.php";
-				$auth_pass = decrypt_string($auth_pass);
-			}
-
 			$stored_last_modified = $row["last_modified"];
 			$last_unconditional = $row["last_unconditional"];
 			$cache_images = $row["cache_images"];
 			$fetch_url = $row["feed_url"];
+
 			$feed_language = mb_strtolower($row["feed_language"]);
 			if (!$feed_language) $feed_language = 'english';
 
@@ -637,8 +634,11 @@ class RSSUtils {
 
 				$entry_link = rewrite_relative_url($site_url, $item->get_link());
 
+				$entry_language = mb_substr(trim($item->get_language()), 0, 2);
+
 				_debug("title $entry_title", $debug_enabled);
 				_debug("link $entry_link", $debug_enabled);
+				_debug("language $entry_language", $debug_enabled);
 
 				if (!$entry_title) $entry_title = date("Y-m-d H:i:s", $entry_timestamp);;
 
@@ -694,7 +694,6 @@ class RSSUtils {
 					$base_entry_id = $row["id"];
 					$entry_stored_hash = $row["content_hash"];
 					$article_labels = Article::get_article_labels($base_entry_id, $owner_uid);
-					$entry_language = $row["lang"];
 
 					$existing_tags = Article::get_article_tags($base_entry_id, $owner_uid);
 					$entry_tags = array_unique(array_merge($entry_tags, $existing_tags));
@@ -702,7 +701,6 @@ class RSSUtils {
 					$base_entry_id = false;
 					$entry_stored_hash = "";
 					$article_labels = array();
-					$entry_language = "";
 				}
 
 				$article = array("owner_uid" => $owner_uid, // read only
@@ -767,7 +765,7 @@ class RSSUtils {
 				_debug("plugin data: $entry_plugin_data", $debug_enabled);
 
 				// Workaround: 4-byte unicode requires utf8mb4 in MySQL. See https://tt-rss.org/forum/viewtopic.php?f=1&t=3377&p=20077#p20077
-				if (DB_TYPE == "mysql") {
+				if (DB_TYPE == "mysql" && MYSQL_CHARSET != "UTF8MB4") {
 					foreach ($article as $k => $v) {
 						// i guess we'll have to take the risk of 4byte unicode labels & tags here
 						if (is_string($article[$k])) {
@@ -861,7 +859,7 @@ class RSSUtils {
 
 					$usth = $pdo->prepare(
 						"INSERT INTO ttrss_entries
-							(title, 
+							(title,
 							guid,
 							link,
 							updated,
@@ -930,7 +928,7 @@ class RSSUtils {
 
 						_debug("user record FOUND: RID: $entry_ref_id, IID: $entry_int_id", $debug_enabled);
 					} else {
-						
+
 						_debug("user record not found, creating...", $debug_enabled);
 
 						if ($score >= -500 && !RSSUtils::find_article_filter($article_filters, 'catchup') && !$entry_force_catchup) {
@@ -993,7 +991,7 @@ class RSSUtils {
 							num_comments = :num_comments,
 							plugin_data = :plugin_data,
 							author = :author,
-							lang = :lang														
+							lang = :lang
 						WHERE id = :id");
 
 					$params = [":title" => $entry_title,
@@ -1053,7 +1051,7 @@ class RSSUtils {
 							$e->type, $e->length, $e->title, $e->width, $e->height);
 
 						// Yet another episode of "mysql utf8_general_ci is gimped"
-						if (DB_TYPE == "mysql") {
+						if (DB_TYPE == "mysql" && MYSQL_CHARSET != "UTF8MB4") {
 							for ($i = 0; $i < count($e_item); $i++) {
 								if (is_string($e_item[$i])) {
 									$e_item[$i] = RSSUtils::strip_utf8mb4($e_item[$i]);
@@ -1074,7 +1072,7 @@ class RSSUtils {
 				}
 
 				$esth = $pdo->prepare("SELECT id FROM ttrss_enclosures
-						WHERE content_url = ? AND post_id = ?");
+						WHERE content_url = ? AND content_type = ? AND post_id = ?");
 
 				$usth = $pdo->prepare("INSERT INTO ttrss_enclosures
 							(content_url, content_type, title, duration, post_id, width, height) VALUES
@@ -1088,7 +1086,7 @@ class RSSUtils {
 					$enc_width = intval($enc[4]);
 					$enc_height = intval($enc[5]);
 
-					$esth->execute([$enc_url, $entry_ref_id]);
+					$esth->execute([$enc_url, $enc_type, $entry_ref_id]);
 
 					if (!$esth->fetch()) {
 						$usth->execute([$enc_url, $enc_type, (string)$enc_title, $enc_dur, $entry_ref_id, $enc_width, $enc_height]);
@@ -1227,7 +1225,7 @@ class RSSUtils {
 					if ($file_content && strlen($file_content) > MIN_CACHE_FILE_SIZE) {
 						file_put_contents($local_filename, $file_content);
 					}
-				} else {
+				} else if (is_writable($local_filename)) {
 					touch($local_filename);
 				}
 			}
@@ -1253,15 +1251,17 @@ class RSSUtils {
 
 				$local_filename = CACHE_DIR . "/images/" . sha1($src);
 
-				if ($debug) _debug("cache_media: downloading: $src to $local_filename");
+				if ($debug) _debug("cache_media: checking $src");
 
 				if (!file_exists($local_filename)) {
+					if ($debug) _debug("cache_media: downloading: $src to $local_filename");
+
 					$file_content = fetch_file_contents($src);
 
 					if ($file_content && strlen($file_content) > MIN_CACHE_FILE_SIZE) {
 						file_put_contents($local_filename, $file_content);
 					}
-				} else {
+				} else if (is_writable($local_filename)) {
 					touch($local_filename);
 				}
 			}

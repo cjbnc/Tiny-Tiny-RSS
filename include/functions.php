@@ -700,22 +700,26 @@
 
 		if (!SINGLE_USER_MODE) {
 			$user_id = false;
+			$auth_module = false;
 
 			foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_AUTH_USER) as $plugin) {
 
 				$user_id = (int) $plugin->authenticate($login, $password);
 
 				if ($user_id) {
-					$_SESSION["auth_module"] = strtolower(get_class($plugin));
+					$auth_module = strtolower(get_class($plugin));
 					break;
 				}
 			}
 
 			if ($user_id && !$check_only) {
-				@session_start();
+
+				session_start();
+				session_regenerate_id(true);
 
 				$_SESSION["uid"] = $user_id;
 				$_SESSION["version"] = VERSION_STATIC;
+				$_SESSION["auth_module"] = $auth_module;
 
 				$pdo = DB::pdo();
 				$sth = $pdo->prepare("SELECT login,access_level,pwd_hash FROM ttrss_users
@@ -811,10 +815,11 @@
 	}
 
 	function logout_user() {
-		session_destroy();
+		@session_destroy();
 		if (isset($_COOKIE[session_name()])) {
 		   setcookie(session_name(), '', time()-42000, '/');
 		}
+		session_commit();
 	}
 
 	function validate_csrf($csrf_token) {
@@ -856,8 +861,7 @@
 				}
 
 				if (!$_SESSION["uid"]) {
-					@session_destroy();
-					setcookie(session_name(), '', time()-42000, '/');
+					logout_user();
 
 					render_login_form();
 					exit;
@@ -1564,6 +1568,66 @@
 		return false;
 	}
 
+	// check for locally cached (media) URLs and rewrite to local versions
+	// this is called separately after sanitize() and plugin render article hooks to allow
+	// plugins work on original source URLs used before caching
+
+	function rewrite_cached_urls($str) {
+		$charset_hack = '<head>
+				<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+			</head>';
+
+		$res = trim($str); if (!$res) return '';
+
+		$doc = new DOMDocument();
+		$doc->loadHTML($charset_hack . $res);
+		$xpath = new DOMXPath($doc);
+
+		$entries = $xpath->query('(//img[@src]|//video[@poster]|//video/source[@src]|//audio/source[@src])');
+
+		$need_saving = false;
+
+		foreach ($entries as $entry) {
+
+			if ($entry->hasAttribute('src') || $entry->hasAttribute('poster')) {
+
+				// should be already absolutized because this is called after sanitize()
+				$src = $entry->hasAttribute('poster') ? $entry->getAttribute('poster') : $entry->getAttribute('src');
+				$cached_filename = CACHE_DIR . '/images/' . sha1($src);
+
+				if (file_exists($cached_filename)) {
+
+					// this is strictly cosmetic
+					if ($entry->tagName == 'img') {
+						$suffix = ".png";
+					} else if ($entry->parentNode && $entry->parentNode->tagName == "video") {
+						$suffix = ".mp4";
+					} else if ($entry->parentNode && $entry->parentNode->tagName == "audio") {
+						$suffix = ".ogg";
+					} else {
+						$suffix = "";
+					}
+
+					$src = get_self_url_prefix() . '/public.php?op=cached_url&hash=' . sha1($src) . $suffix;
+
+					if ($entry->hasAttribute('poster'))
+						$entry->setAttribute('poster', $src);
+					else
+						$entry->setAttribute('src', $src);
+
+					$need_saving = true;
+				}
+			}
+		}
+
+		if ($need_saving) {
+			$doc->removeChild($doc->firstChild); //remove doctype
+			$res = $doc->saveHTML();
+		}
+
+		return $res;
+	}
+
 	function sanitize($str, $force_remove_images = false, $owner = false, $site_url = false, $highlight_words = false, $article_id = false) {
 		if (!$owner) $owner = $_SESSION["uid"];
 
@@ -1596,31 +1660,8 @@
 
 			if ($entry->hasAttribute('src')) {
 				$src = rewrite_relative_url($rewrite_base_url, $entry->getAttribute('src'));
-				$cached_filename = CACHE_DIR . '/images/' . sha1($src);
 
-				if (file_exists($cached_filename)) {
-
-					// this is strictly cosmetic
-					if ($entry->tagName == 'img') {
-						$suffix = ".png";
-					} else if ($entry->parentNode && $entry->parentNode->tagName == "video") {
-						$suffix = ".mp4";
-					} else if ($entry->parentNode && $entry->parentNode->tagName == "audio") {
-						$suffix = ".ogg";
-					} else {
-						$suffix = "";
-					}
-
-					$src = get_self_url_prefix() . '/public.php?op=cached_url&hash=' . sha1($src) . $suffix;
-
-					if ($entry->hasAttribute('srcset')) {
-						$entry->removeAttribute('srcset');
-					}
-
-					if ($entry->hasAttribute('sizes')) {
-						$entry->removeAttribute('sizes');
-					}
-				}
+				// cache stuff has gone to rewrite_cached_urls()
 
 				$entry->setAttribute('src', $src);
 			}
@@ -1645,22 +1686,32 @@
 						}
 					}
 				}
+			}
 
-				if (($owner && get_pref("STRIP_IMAGES", $owner)) ||
-					$force_remove_images || $_SESSION["bw_limit"]) {
+			if ($entry->hasAttribute('src') &&
+					($owner && get_pref("STRIP_IMAGES", $owner)) || $force_remove_images || $_SESSION["bw_limit"]) {
 
-					$p = $doc->createElement('p');
+				$p = $doc->createElement('p');
 
-					$a = $doc->createElement('a');
-					$a->setAttribute('href', $entry->getAttribute('src'));
+				$a = $doc->createElement('a');
+				$a->setAttribute('href', $entry->getAttribute('src'));
 
-					$a->appendChild(new DOMText($entry->getAttribute('src')));
-					$a->setAttribute('target', '_blank');
-					$a->setAttribute('rel', 'noopener noreferrer');
+				$a->appendChild(new DOMText($entry->getAttribute('src')));
+				$a->setAttribute('target', '_blank');
+				$a->setAttribute('rel', 'noopener noreferrer');
 
-					$p->appendChild($a);
+				$p->appendChild($a);
 
-					$entry->parentNode->replaceChild($p, $entry);
+				if ($entry->nodeName == 'source') {
+
+					if ($entry->parentNode && $entry->parentNode->parentNode)
+						$entry->parentNode->parentNode->replaceChild($p, $entry->parentNode);
+
+				} else if ($entry->nodeName == 'img') {
+
+					if ($entry->parentNode)
+						$entry->parentNode->replaceChild($p, $entry);
+
 				}
 			}
 
@@ -2564,6 +2615,9 @@
 		should be loaded systemwide in config.php */
 	function send_local_file($filename) {
 		if (file_exists($filename)) {
+
+			if (is_writable($filename)) touch($filename);
+
 			$tmppluginhost = new PluginHost();
 
 			$tmppluginhost->load(PLUGINS, PluginHost::KIND_SYSTEM);
@@ -2574,6 +2628,13 @@
 			}
 
 			$mimetype = mime_content_type($filename);
+
+			// this is hardly ideal but 1) only media is cached in images/ and 2) seemingly only mp4
+			// video files are detected as octet-stream by mime_content_type()
+
+			if ($mimetype == "application/octet-stream")
+				$mimetype = "video/mp4";
+
 			header("Content-type: $mimetype");
 
 			$stamp = gmdate("D, d M Y H:i:s", filemtime($filename)) . " GMT";
